@@ -152,10 +152,10 @@ class ToolRegistry {
         execute: async ({ query }) => this.memoryStore.getRelevant(query),
       },
       show_hologram: {
-        description: 'Show 3D hologram. Types: sphere, cube, pyramid, torus, car, robot, building, aircraft, planet, molecule, satellite',
+        description: 'Project a 3D wireframe hologram. Prefer object: jarvis, core, suit, head, sphere, planet, cube, pyramid, torus, molecule, car, robot, building, aircraft, plane, satellite. Set label to what the user asked for.',
         parameters: { type: 'object', properties: { object: { type: 'string' }, label: { type: 'string' }, color: { type: 'string' }, note: { type: 'string' } }, required: ['object'] },
         execute: async ({ object, label, color, note }) => {
-          const payload = { object: String(object || 'cube').toLowerCase(), label: label || object || 'Model', color: color || '#4fd8ff', note: note || '' };
+          const payload = { object: String(object || 'jarvis').toLowerCase(), label: label || object || 'Model', color: color || '#4fd8ff', note: note || '' };
           if (this.eventBus) this.eventBus.safeEmit('hologram:show', payload);
           return { ok: true, message: 'Hologram projected: ' + payload.label };
         },
