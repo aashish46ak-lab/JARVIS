@@ -21,7 +21,7 @@ let mainWindow = null;
 const config = new ConfigManager();
 const logger = new Logger({ logDir: path.join(app.getPath('userData'), 'logs') });
 const memoryStore = new MemoryStore();
-const toolRegistry = new ToolRegistry({ memoryStore, logger });
+const toolRegistry = new ToolRegistry({ memoryStore, logger, eventBus });
 const permissionManager = new PermissionManager({ config, logger });
 const conversationManager = new ConversationManager({
   config, toolRegistry, permissionManager, memoryStore, eventBus, logger,
@@ -30,6 +30,7 @@ const ttsService = new TTSService({
   apiKey: config.get('fishApiKey'),
   voiceId: config.get('fishVoiceId') || '14129c3e320149449d6bada6862f7338',
   enabled: config.get('voiceEnabled'),
+  speed: config.get('speakingSpeed') || 1.0,
   logger,
 });
 const sttService = new STTService({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey'), logger });
@@ -69,11 +70,12 @@ const FORWARDED_EVENTS = [
   'state:change', 'activity', 'assistant:interim', 'assistant:final',
   'confirmation:request', 'tool:executing', 'tool:result', 'error',
   'assistant:speaking', 'assistant:interrupted',
+  'hologram:show', 'hologram:hide', 'hologram:view',
 ];
 for (const evt of FORWARDED_EVENTS) {
   eventBus.on(evt, (payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(`bus:${evt}`, payload);
+      mainWindow.webContents.send('bus:' + evt, payload);
     }
   });
 }
@@ -127,6 +129,7 @@ ipcMain.handle('config:update', async (_evt, partial) => {
     apiKey: config.get('fishApiKey'),
     voiceId: config.get('fishVoiceId') || '14129c3e320149449d6bada6862f7338',
     enabled: config.get('voiceEnabled'),
+    speed: config.get('speakingSpeed') || 1.0,
   });
   sttService.updateConfig({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey') });
   conversationManager.refreshProvider();
@@ -161,12 +164,12 @@ ipcMain.handle('logs:export', async () => {
   }
 });
 
-ipcMain.handle('window:minimize', async () => mainWindow?.minimize());
-ipcMain.handle('window:close', async () => mainWindow?.close());
+ipcMain.handle('window:minimize', async () => mainWindow && mainWindow.minimize());
+ipcMain.handle('window:close', async () => mainWindow && mainWindow.close());
 ipcMain.handle('window:toggleAlwaysOnTop', async () => {
   const next = !config.get('alwaysOnTop');
   config.set('alwaysOnTop', next);
-  mainWindow?.setAlwaysOnTop(next);
+  if (mainWindow) mainWindow.setAlwaysOnTop(next);
   return next;
 });
 ipcMain.handle('shell:openExternal', async (_evt, url) => shell.openExternal(url));
@@ -178,33 +181,27 @@ async function checkProactiveSuggestions() {
     const status = await si.fsSize();
     const battery = await si.battery();
     const load = await si.currentLoad();
-
     const primaryDisk = status.sort((a, b) => b.size - a.size)[0];
     if (primaryDisk && primaryDisk.use >= 90 && !suggestionState.lowDiskWarned) {
       suggestionState.lowDiskWarned = true;
       eventBus.safeEmit('assistant:final', {
-        text: "Sir, storage is getting rather full — you're above ninety percent used. Shall I find what's consuming the most space?",
+        text: "Sir, storage is getting rather full. Shall I investigate what's using the space?",
         proactive: true,
       });
     }
-
-    if (battery?.hasBattery && battery.percent <= 15 && !battery.isCharging && !suggestionState.lowBatteryWarned) {
+    if (battery && battery.hasBattery && battery.percent <= 15 && !battery.isCharging && !suggestionState.lowBatteryWarned) {
       suggestionState.lowBatteryWarned = true;
       eventBus.safeEmit('assistant:final', {
-        text: `Battery is down to ${battery.percent} percent. You may want to connect the charger.`,
+        text: 'Battery is down to ' + battery.percent + ' percent. You may want to connect the charger.',
         proactive: true,
       });
     }
-    if (battery?.isCharging) suggestionState.lowBatteryWarned = false;
-
-    if (load && load.currentLoad >= 90) {
-      suggestionState.highCpuStreak += 1;
-    } else {
-      suggestionState.highCpuStreak = 0;
-    }
+    if (battery && battery.isCharging) suggestionState.lowBatteryWarned = false;
+    if (load && load.currentLoad >= 90) suggestionState.highCpuStreak += 1;
+    else suggestionState.highCpuStreak = 0;
     if (suggestionState.highCpuStreak === 6) {
       eventBus.safeEmit('assistant:final', {
-        text: "Something has been consuming a considerable amount of CPU for a while now. Would you like me to check what's running?",
+        text: 'Something has been consuming a considerable amount of CPU. Shall I check running processes?',
         proactive: true,
       });
     }
@@ -217,7 +214,6 @@ let proactiveTimer = null;
 app.whenReady().then(() => {
   createWindow();
   proactiveTimer = setInterval(checkProactiveSuggestions, 30 * 1000);
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -232,5 +228,5 @@ process.on('uncaughtException', (err) => {
   logger.error('ERROR', 'Uncaught exception', { error: err.message, stack: err.stack });
 });
 process.on('unhandledRejection', (err) => {
-  logger.error('ERROR', 'Unhandled rejection', { error: err?.message || String(err) });
+  logger.error('ERROR', 'Unhandled rejection', { error: (err && err.message) || String(err) });
 });
