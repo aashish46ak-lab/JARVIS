@@ -304,6 +304,16 @@
   window.jarvis.events.on('assistant:final', (payload) => {
     if (payload && payload.proactive) { pushMessage('jarvis', payload.text); speakReply(payload.text); }
   });
+  window.jarvis.events.on('hologram:show', (payload) => {
+    if (typeof JarvisHologram !== 'undefined') JarvisHologram.show(payload || {});
+    pushActivity('HOLOGRAM: ' + ((payload && payload.label) || (payload && payload.object) || 'model'));
+  });
+  window.jarvis.events.on('hologram:hide', () => {
+    if (typeof JarvisHologram !== 'undefined') JarvisHologram.hide();
+  });
+  window.jarvis.events.on('hologram:view', (payload) => {
+    if (typeof JarvisHologram !== 'undefined') JarvisHologram.setView(payload && payload.view);
+  });
 
   async function bootstrap() {
     const config = await window.jarvis.config.getAll();
