@@ -27,13 +27,12 @@ const conversationManager = new ConversationManager({
   config, toolRegistry, permissionManager, memoryStore, eventBus, logger,
 });
 const ttsService = new TTSService({
-  apiKey: config.get('elevenLabsApiKey'),
-  voiceId: config.get('elevenLabsVoiceId'),
-  speed: config.get('speakingSpeed'),
+  apiKey: config.get('fishApiKey'),
+  voiceId: config.get('fishVoiceId') || '14129c3e320149449d6bada6862f7338',
   enabled: config.get('voiceEnabled'),
   logger,
 });
-const sttService = new STTService({ apiKey: config.get('geminiApiKey'), logger });
+const sttService = new STTService({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey'), logger });
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -125,12 +124,11 @@ ipcMain.handle('config:getAll', async () => config.getAllMasked());
 ipcMain.handle('config:update', async (_evt, partial) => {
   const updated = config.update(partial);
   ttsService.updateConfig({
-    apiKey: config.get('elevenLabsApiKey'),
-    voiceId: config.get('elevenLabsVoiceId'),
-    speed: config.get('speakingSpeed'),
+    apiKey: config.get('fishApiKey'),
+    voiceId: config.get('fishVoiceId') || '14129c3e320149449d6bada6862f7338',
     enabled: config.get('voiceEnabled'),
   });
-  sttService.updateConfig({ apiKey: config.get('geminiApiKey') });
+  sttService.updateConfig({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey') });
   conversationManager.refreshProvider();
   if (mainWindow) mainWindow.setAlwaysOnTop(config.get('alwaysOnTop'));
   return updated;
