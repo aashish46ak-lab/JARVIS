@@ -6,7 +6,7 @@ const DEFAULTS = {
   firstRunComplete: false,
   aiProvider: process.env.AI_PROVIDER || 'groq',
   groqApiKey: process.env.GROQ_API_KEY || '',
-  groqModel: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  groqModel: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   fishApiKey: process.env.FISH_API_KEY || '',
