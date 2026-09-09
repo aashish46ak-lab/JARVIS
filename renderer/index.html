@@ -20,8 +20,8 @@
     <header class="top-bar">
       <div class="left">
         <span class="logo">J.A.R.V.I.S.</span>
-        <span id="provider-label" class="chip">gemini</span>
-        <span id="wakeword-label" class="chip">jarvis</span>
+        <span id="provider-label" class="chip">groq</span>
+        <span id="wakeword-label" class="chip">open mic</span>
       </div>
       <div class="right">
         <button id="btn-pin" title="Always on top">📌</button>
@@ -64,11 +64,11 @@
         <div class="viz-wrap">
           <canvas id="viz-canvas"></canvas>
           <div class="viz-status-wrap">
-            <div id="viz-status">SYSTEMS NOMINAL</div>
+            <div id="viz-status">STANDBY</div>
             <div id="state-label">IDLE</div>
           </div>
         </div>
-        <p id="hud-tagline" class="tagline">Awaiting your command, sir.</p>
+        <p id="hud-tagline" class="tagline">AWAITING COMMAND</p>
       </section>
 
       <aside class="panel right-panel">
@@ -87,8 +87,8 @@
     <footer class="bottom-bar">
       <div id="conversation" class="conversation"></div>
       <div class="input-row">
-        <button id="btn-mic" class="mic-btn" title="Hold to talk (or continuous mode)">🎤</button>
-        <input id="text-input" type="text" placeholder="Type a command or speak…" autocomplete="off" />
+        <button id="btn-mic" class="mic-btn" title="Hold to talk">🎤</button>
+        <input id="text-input" type="text" placeholder="Speak or type a command…" autocomplete="off" />
         <button id="btn-send" class="send-btn">SEND</button>
       </div>
     </footer>
@@ -113,6 +113,8 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="scripts/hologram.js"></script>
   <script src="scripts/voice.js"></script>
   <script src="scripts/settings.js"></script>
   <script src="scripts/renderer.js"></script>
