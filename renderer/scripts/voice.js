@@ -3,9 +3,10 @@
 const JarvisVoice = (function () {
   const listeners = {};
   let recognition = null;
-  let continuous = false;
+  let modeContinuous = true;
+  let activelyListening = false;
   let wakeWord = 'jarvis';
-  let wakeWordEnabled = true;
+  let wakeWordEnabled = false;
   let mediaRecorder = null;
   let audioChunks = [];
   let micStream = null;
@@ -18,50 +19,41 @@ const JarvisVoice = (function () {
   let ttsRaf = null;
   let failedAttempts = 0;
   let preferredVoice = null;
+  let restartTimer = null;
 
   function on(event, cb) {
     if (!listeners[event]) listeners[event] = [];
     listeners[event].push(cb);
   }
   function emit(event, payload) {
-    (listeners[event] || []).forEach((cb) => {
+    (listeners[event] || []).forEach(function (cb) {
       try { cb(payload); } catch (_) {}
     });
   }
 
-  function configure(opts = {}) {
-    if (opts.wakeWordEnabled !== undefined) wakeWordEnabled = opts.wakeWordEnabled;
-    if (opts.wakeWord) wakeWord = (opts.wakeWord || 'jarvis').toLowerCase();
-    if (opts.listeningMode) continuous = opts.listeningMode === 'continuous';
+  function configure(opts) {
+    opts = opts || {};
+    if (opts.wakeWordEnabled !== undefined) wakeWordEnabled = !!opts.wakeWordEnabled;
+    if (opts.wakeWord) wakeWord = String(opts.wakeWord || 'jarvis').toLowerCase();
+    if (opts.listeningMode) modeContinuous = opts.listeningMode === 'continuous';
   }
 
   function pickVoice() {
     if (!window.speechSynthesis) return null;
-    const voices = speechSynthesis.getVoices();
+    var voices = speechSynthesis.getVoices();
     if (!voices.length) return null;
-    const preferred = [
-      /google uk english male/i,
-      /microsoft george/i,
-      /microsoft ryan/i,
-      /daniel/i,
-      /british/i,
-      /en-gb/i,
-      /english.*male/i,
-      /uk english/i,
-    ];
-    for (const re of preferred) {
-      const v = voices.find((x) => re.test(x.name) || re.test(x.lang));
+    var preferred = [/google uk english male/i, /microsoft george/i, /microsoft ryan/i, /daniel/i, /british/i, /en-gb/i, /uk english/i];
+    for (var i = 0; i < preferred.length; i++) {
+      var v = voices.find(function (x) { return preferred[i].test(x.name) || preferred[i].test(x.lang); });
       if (v) return v;
     }
-    return voices.find((v) => v.lang.startsWith('en')) || voices[0];
+    return voices.find(function (v) { return v.lang && v.lang.indexOf('en') === 0; }) || voices[0];
   }
 
   function loadVoices() {
     preferredVoice = pickVoice();
     if (window.speechSynthesis) {
-      speechSynthesis.onvoiceschanged = () => {
-        preferredVoice = pickVoice();
-      };
+      speechSynthesis.onvoiceschanged = function () { preferredVoice = pickVoice(); };
     }
   }
   loadVoices();
@@ -69,60 +61,72 @@ const JarvisVoice = (function () {
   async function initMicLevelMeter() {
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = ctx.createMediaStreamSource(micStream);
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = ctx.createMediaStreamSource(micStream);
       analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
+      var tick = function () {
         levelRaf = requestAnimationFrame(tick);
         if (!analyser) return;
         analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        const level = Math.min(1, (sum / dataArray.length) / 80);
-        emit('micLevel', level);
+        var sum = 0;
+        for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        emit('micLevel', Math.min(1, (sum / dataArray.length) / 80));
       };
       tick();
     } catch (err) {
-      emit('micError', { message: 'Microphone access denied or unavailable.' });
+      emit('micError', { message: 'Microphone access denied. Allow mic permission and restart.' });
     }
   }
 
   function startContinuousListening() {
-    if (!continuous) return;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!modeContinuous) return;
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      emit('fallbackPushToTalk', { message: 'SpeechRecognition unavailable — switched to push-to-talk.' });
-      continuous = false;
+      emit('fallbackPushToTalk', { message: 'Speech recognition not available.' });
       return;
     }
     try {
       if (recognition) {
-        try { recognition.stop(); } catch (_) {}
+        try {
+          recognition.onend = null;
+          recognition.onerror = null;
+          recognition.onresult = null;
+          recognition.stop();
+        } catch (_) {}
+        recognition = null;
       }
+
       recognition = new SR();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
-      recognition.onresult = (event) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const t = event.results[i][0].transcript;
-          if (event.results[i].isFinal) final += t;
+      recognition.onstart = function () {
+        activelyListening = true;
+        failedAttempts = 0;
+      };
+
+      recognition.onresult = function (event) {
+        var interim = '';
+        var finalText = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalText += t;
           else interim += t;
         }
         if (interim) emit('interim', interim);
-        if (final) {
-          const text = final.trim();
+        if (finalText) {
+          var text = finalText.trim();
+          if (!text) return;
           if (wakeWordEnabled) {
-            const lower = text.toLowerCase();
-            if (lower.includes(wakeWord)) {
+            var lower = text.toLowerCase();
+            if (lower.indexOf(wakeWord) !== -1) {
               emit('wake');
-              const after = text.slice(lower.indexOf(wakeWord) + wakeWord.length).trim();
+              var after = text.slice(lower.indexOf(wakeWord) + wakeWord.length).replace(/^[,.\s]+/, '').trim();
               if (after) emit('transcript', after);
             }
           } else {
@@ -131,45 +135,64 @@ const JarvisVoice = (function () {
         }
       };
 
-      recognition.onerror = (e) => {
+      recognition.onerror = function (e) {
+        var err = (e && e.error) || '';
+        if (err === 'no-speech' || err === 'aborted' || err === 'audio-capture') return;
+        if (err === 'not-allowed') {
+          emit('micError', { message: 'Microphone permission blocked.' });
+          activelyListening = false;
+          return;
+        }
         failedAttempts += 1;
-        if (e.error === 'network' || failedAttempts >= 3) {
-          emit('fallbackPushToTalk', {
-            message: 'Continuous recognition failed — switched to push-to-talk (hold mic button).',
-          });
-          continuous = false;
-          stopContinuousListening();
+        if (err === 'network' || failedAttempts >= 5) {
+          emit('fallbackPushToTalk', { message: 'Speech recognition trouble. Type or use mic button.' });
         }
       };
 
-      recognition.onend = () => {
-        if (continuous) {
-          try { recognition.start(); } catch (_) {}
+      recognition.onend = function () {
+        activelyListening = false;
+        if (modeContinuous) {
+          if (restartTimer) clearTimeout(restartTimer);
+          restartTimer = setTimeout(function () {
+            if (!modeContinuous) return;
+            try {
+              if (recognition) recognition.start();
+              else startContinuousListening();
+            } catch (_) {
+              try { startContinuousListening(); } catch (e2) {}
+            }
+          }, 300);
         }
       };
 
       recognition.start();
+      activelyListening = true;
       failedAttempts = 0;
     } catch (err) {
-      emit('fallbackPushToTalk', { message: 'Could not start continuous listening. Use push-to-talk.' });
-      continuous = false;
+      activelyListening = false;
+      emit('fallbackPushToTalk', { message: 'Could not start listening: ' + (err.message || err) });
     }
   }
 
   function stopContinuousListening() {
-    continuous = false;
+    // Pause only — do NOT clear modeContinuous (that was the bug)
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     if (recognition) {
-      try { recognition.onend = null; recognition.stop(); } catch (_) {}
-      recognition = null;
+      try {
+        recognition.onend = null;
+        recognition.stop();
+      } catch (_) {}
     }
+    activelyListening = false;
   }
 
   async function startPushToTalkRecording() {
     try {
       if (!micStream) micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunks = [];
-      mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
-      mediaRecorder.ondataavailable = (e) => { if (e.data.size) audioChunks.push(e.data); };
+      var mime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
+      mediaRecorder = mime ? new MediaRecorder(micStream, { mimeType: mime }) : new MediaRecorder(micStream);
+      mediaRecorder.ondataavailable = function (e) { if (e.data && e.data.size) audioChunks.push(e.data); };
       mediaRecorder.start(100);
     } catch (err) {
       emit('micError', { message: 'Could not start recording: ' + err.message });
@@ -177,19 +200,16 @@ const JarvisVoice = (function () {
   }
 
   async function stopPushToTalkRecording() {
-    return new Promise((resolve) => {
-      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-        resolve();
-        return;
-      }
-      mediaRecorder.onstop = async () => {
+    return new Promise(function (resolve) {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') { resolve(); return; }
+      mediaRecorder.onstop = async function () {
         emit('transcribing', true);
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64 = reader.result.split(',')[1];
+        var blob = new Blob(audioChunks, { type: 'audio/webm' });
+        var reader = new FileReader();
+        reader.onloadend = async function () {
+          var base64 = String(reader.result).split(',')[1];
           try {
-            const res = await window.jarvis.voice.transcribeFallback(base64, 'audio/webm');
+            var res = await window.jarvis.voice.transcribeFallback(base64, 'audio/webm');
             if (res.ok && res.text) emit('transcript', res.text.trim());
             else if (!res.ok) emit('micError', { message: res.error || 'Transcription failed' });
           } catch (err) {
@@ -205,81 +225,54 @@ const JarvisVoice = (function () {
   }
 
   function speakFree(text) {
-    return new Promise((resolve) => {
-      if (!window.speechSynthesis) {
-        resolve();
-        return;
-      }
+    return new Promise(function (resolve) {
+      if (!window.speechSynthesis) { resolve(); return; }
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0;
+      u.pitch = 0.95;
       preferredVoice = preferredVoice || pickVoice();
       if (preferredVoice) u.voice = preferredVoice;
-      u.rate = 0.92;
-      u.pitch = 0.85;
-      u.volume = 1;
-
-      let anim = true;
-      const pulse = () => {
-        if (!anim) return;
-        emit('ttsLevel', 0.35 + Math.random() * 0.5);
-        requestAnimationFrame(pulse);
-      };
-      pulse();
-
-      u.onend = () => {
-        anim = false;
-        emit('ttsLevel', 0);
-        resolve();
-      };
-      u.onerror = () => {
-        anim = false;
-        emit('ttsLevel', 0);
-        resolve();
-      };
+      var pulse = setInterval(function () { emit('ttsLevel', 0.3 + Math.random() * 0.4); }, 120);
+      u.onend = function () { clearInterval(pulse); emit('ttsLevel', 0); resolve(); };
+      u.onerror = function () { clearInterval(pulse); emit('ttsLevel', 0); resolve(); };
       speechSynthesis.speak(u);
     });
   }
 
   async function speak(text) {
+    if (!text) return;
+    stopContinuousListening();
     try {
-      const res = await window.jarvis.tts.synthesize(text);
+      var res = await window.jarvis.tts.synthesize(text);
       if (res && res.ok && res.audio) {
-        return new Promise(async (resolve) => {
+        await new Promise(async function (resolve) {
           try {
-            const audioBlob = await (await fetch(`data:${res.mimeType};base64,${res.audio}`)).blob();
-            const url = URL.createObjectURL(audioBlob);
+            var audioBlob = await (await fetch('data:' + res.mimeType + ';base64,' + res.audio)).blob();
+            var url = URL.createObjectURL(audioBlob);
             speakingAudio = new Audio(url);
-
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(speakingAudio);
+            var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            var source = audioCtx.createMediaElementSource(speakingAudio);
             ttsAnalyser = audioCtx.createAnalyser();
             ttsAnalyser.fftSize = 256;
             source.connect(ttsAnalyser);
             ttsAnalyser.connect(audioCtx.destination);
             ttsData = new Uint8Array(ttsAnalyser.frequencyBinCount);
-
-            const tickTts = () => {
+            var tickTts = function () {
               ttsRaf = requestAnimationFrame(tickTts);
               if (!ttsAnalyser) return;
               ttsAnalyser.getByteFrequencyData(ttsData);
-              let sum = 0;
-              for (let i = 0; i < ttsData.length; i++) sum += ttsData[i];
-              const level = Math.min(1, (sum / ttsData.length) / 60);
-              emit('ttsLevel', level);
+              var sum = 0;
+              for (var i = 0; i < ttsData.length; i++) sum += ttsData[i];
+              emit('ttsLevel', Math.min(1, (sum / ttsData.length) / 60));
             };
             tickTts();
-
-            speakingAudio.onended = () => {
-              cancelAnimationFrame(ttsRaf);
-              emit('ttsLevel', 0);
-              URL.revokeObjectURL(url);
-              speakingAudio = null;
-              resolve();
+            speakingAudio.onended = function () {
+              cancelAnimationFrame(ttsRaf); emit('ttsLevel', 0);
+              URL.revokeObjectURL(url); speakingAudio = null; resolve();
             };
-            speakingAudio.onerror = () => {
-              cancelAnimationFrame(ttsRaf);
-              emit('ttsLevel', 0);
-              resolve();
+            speakingAudio.onerror = function () {
+              cancelAnimationFrame(ttsRaf); emit('ttsLevel', 0); resolve();
             };
             await speakingAudio.play();
           } catch (err) {
@@ -287,26 +280,27 @@ const JarvisVoice = (function () {
             resolve();
           }
         });
+        return;
       }
     } catch (_) {}
-    return speakFree(text);
+    await speakFree(text);
   }
 
   function stopSpeaking() {
     if (speakingAudio) {
-      speakingAudio.pause();
-      speakingAudio = null;
-      cancelAnimationFrame(ttsRaf);
-      emit('ttsLevel', 0);
+      speakingAudio.pause(); speakingAudio = null;
+      cancelAnimationFrame(ttsRaf); emit('ttsLevel', 0);
     }
     if (window.speechSynthesis) speechSynthesis.cancel();
     emit('ttsLevel', 0);
   }
 
   return {
-    on, configure, initMicLevelMeter,
-    startContinuousListening, stopContinuousListening,
-    startPushToTalkRecording, stopPushToTalkRecording,
-    speak, stopSpeaking,
+    on: on, configure: configure, initMicLevelMeter: initMicLevelMeter,
+    startContinuousListening: startContinuousListening,
+    stopContinuousListening: stopContinuousListening,
+    startPushToTalkRecording: startPushToTalkRecording,
+    stopPushToTalkRecording: stopPushToTalkRecording,
+    speak: speak, stopSpeaking: stopSpeaking,
   };
 })();
