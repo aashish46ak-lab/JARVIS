@@ -17,6 +17,7 @@ const JarvisVoice = (function () {
   let ttsData = null;
   let ttsRaf = null;
   let failedAttempts = 0;
+  let preferredVoice = null;
 
   function on(event, cb) {
     if (!listeners[event]) listeners[event] = [];
@@ -33,6 +34,37 @@ const JarvisVoice = (function () {
     if (opts.wakeWord) wakeWord = (opts.wakeWord || 'jarvis').toLowerCase();
     if (opts.listeningMode) continuous = opts.listeningMode === 'continuous';
   }
+
+  function pickVoice() {
+    if (!window.speechSynthesis) return null;
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const preferred = [
+      /google uk english male/i,
+      /microsoft george/i,
+      /microsoft ryan/i,
+      /daniel/i,
+      /british/i,
+      /en-gb/i,
+      /english.*male/i,
+      /uk english/i,
+    ];
+    for (const re of preferred) {
+      const v = voices.find((x) => re.test(x.name) || re.test(x.lang));
+      if (v) return v;
+    }
+    return voices.find((v) => v.lang.startsWith('en')) || voices[0];
+  }
+
+  function loadVoices() {
+    preferredVoice = pickVoice();
+    if (window.speechSynthesis) {
+      speechSynthesis.onvoiceschanged = () => {
+        preferredVoice = pickVoice();
+      };
+    }
+  }
+  loadVoices();
 
   async function initMicLevelMeter() {
     try {
@@ -172,56 +204,92 @@ const JarvisVoice = (function () {
     });
   }
 
-  async function speak(text) {
-    return new Promise(async (resolve) => {
-      try {
-        const res = await window.jarvis.tts.synthesize(text);
-        if (!res.ok) {
-          console.warn('TTS failed:', res.error);
-          resolve();
-          return;
-        }
-        const audioBlob = await (await fetch(`data:${res.mimeType};base64,${res.audio}`)).blob();
-        const url = URL.createObjectURL(audioBlob);
-        speakingAudio = new Audio(url);
-
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioCtx.createMediaElementSource(speakingAudio);
-        ttsAnalyser = audioCtx.createAnalyser();
-        ttsAnalyser.fftSize = 256;
-        source.connect(ttsAnalyser);
-        ttsAnalyser.connect(audioCtx.destination);
-        ttsData = new Uint8Array(ttsAnalyser.frequencyBinCount);
-
-        const tickTts = () => {
-          ttsRaf = requestAnimationFrame(tickTts);
-          if (!ttsAnalyser) return;
-          ttsAnalyser.getByteFrequencyData(ttsData);
-          let sum = 0;
-          for (let i = 0; i < ttsData.length; i++) sum += ttsData[i];
-          const level = Math.min(1, (sum / ttsData.length) / 60);
-          emit('ttsLevel', level);
-        };
-        tickTts();
-
-        speakingAudio.onended = () => {
-          cancelAnimationFrame(ttsRaf);
-          emit('ttsLevel', 0);
-          URL.revokeObjectURL(url);
-          speakingAudio = null;
-          resolve();
-        };
-        speakingAudio.onerror = () => {
-          cancelAnimationFrame(ttsRaf);
-          emit('ttsLevel', 0);
-          resolve();
-        };
-        await speakingAudio.play();
-      } catch (err) {
-        console.warn('speak error', err);
+  function speakFree(text) {
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis) {
         resolve();
+        return;
       }
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      preferredVoice = preferredVoice || pickVoice();
+      if (preferredVoice) u.voice = preferredVoice;
+      u.rate = 0.92;
+      u.pitch = 0.85;
+      u.volume = 1;
+
+      let anim = true;
+      const pulse = () => {
+        if (!anim) return;
+        emit('ttsLevel', 0.35 + Math.random() * 0.5);
+        requestAnimationFrame(pulse);
+      };
+      pulse();
+
+      u.onend = () => {
+        anim = false;
+        emit('ttsLevel', 0);
+        resolve();
+      };
+      u.onerror = () => {
+        anim = false;
+        emit('ttsLevel', 0);
+        resolve();
+      };
+      speechSynthesis.speak(u);
     });
+  }
+
+  async function speak(text) {
+    try {
+      const res = await window.jarvis.tts.synthesize(text);
+      if (res && res.ok && res.audio) {
+        return new Promise(async (resolve) => {
+          try {
+            const audioBlob = await (await fetch(`data:${res.mimeType};base64,${res.audio}`)).blob();
+            const url = URL.createObjectURL(audioBlob);
+            speakingAudio = new Audio(url);
+
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaElementSource(speakingAudio);
+            ttsAnalyser = audioCtx.createAnalyser();
+            ttsAnalyser.fftSize = 256;
+            source.connect(ttsAnalyser);
+            ttsAnalyser.connect(audioCtx.destination);
+            ttsData = new Uint8Array(ttsAnalyser.frequencyBinCount);
+
+            const tickTts = () => {
+              ttsRaf = requestAnimationFrame(tickTts);
+              if (!ttsAnalyser) return;
+              ttsAnalyser.getByteFrequencyData(ttsData);
+              let sum = 0;
+              for (let i = 0; i < ttsData.length; i++) sum += ttsData[i];
+              const level = Math.min(1, (sum / ttsData.length) / 60);
+              emit('ttsLevel', level);
+            };
+            tickTts();
+
+            speakingAudio.onended = () => {
+              cancelAnimationFrame(ttsRaf);
+              emit('ttsLevel', 0);
+              URL.revokeObjectURL(url);
+              speakingAudio = null;
+              resolve();
+            };
+            speakingAudio.onerror = () => {
+              cancelAnimationFrame(ttsRaf);
+              emit('ttsLevel', 0);
+              resolve();
+            };
+            await speakingAudio.play();
+          } catch (err) {
+            await speakFree(text);
+            resolve();
+          }
+        });
+      }
+    } catch (_) {}
+    return speakFree(text);
   }
 
   function stopSpeaking() {
@@ -231,6 +299,8 @@ const JarvisVoice = (function () {
       cancelAnimationFrame(ttsRaf);
       emit('ttsLevel', 0);
     }
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    emit('ttsLevel', 0);
   }
 
   return {
