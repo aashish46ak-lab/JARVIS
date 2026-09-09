@@ -20,32 +20,45 @@ class TTSService {
     if (!this.enabled) throw new Error('Voice output is disabled');
     if (!this.apiKey) throw new Error('Fish Audio API key not set (FISH_API_KEY)');
 
-    const url = 'https://api.fish.audio/v1/tts';
-    const body = {
-      text: String(text).slice(0, 2000),
-      reference_id: this.voiceId,
-      format: 'mp3',
-      normalize: true,
-      latency: 'normal',
-    };
+    const models = ['s1', 's2.1-pro-free', 's2-pro'];
+    let lastErr = null;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-        model: 's1',
-      },
-      body: JSON.stringify(body),
-    });
+    for (const model of models) {
+      try {
+        const res = await fetch('https://api.fish.audio/v1/tts', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            model,
+          },
+          body: JSON.stringify({
+            text: String(text).slice(0, 2000),
+            reference_id: this.voiceId,
+            format: 'mp3',
+            normalize: true,
+            latency: 'normal',
+          }),
+        });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Fish Audio error ${res.status}: ${errText.slice(0, 300)}`);
+        if (!res.ok) {
+          const errText = await res.text();
+          lastErr = new Error(`Fish Audio ${model} ${res.status}: ${errText.slice(0, 200)}`);
+          continue;
+        }
+
+        const arrayBuffer = await res.arrayBuffer();
+        if (!arrayBuffer.byteLength) {
+          lastErr = new Error('Empty audio from Fish Audio');
+          continue;
+        }
+        return Buffer.from(arrayBuffer);
+      } catch (err) {
+        lastErr = err;
+      }
     }
 
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    throw lastErr || new Error('Fish Audio TTS failed');
   }
 
   async testVoice() {
