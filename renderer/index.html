@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>J.A.R.V.I.S.</title>
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+  <div id="setup-screen" class="screen hidden">
+    <div class="setup-card">
+      <h1>J.A.R.V.I.S. Setup</h1>
+      <p class="tagline">Voice-first desktop assistant</p>
+      <div id="setup-steps"></div>
+      <button id="setup-finish" class="primary" disabled>Finish & Launch</button>
+    </div>
+  </div>
+
+  <div id="hud-screen" class="screen hidden">
+    <header class="top-bar">
+      <div class="left">
+        <span class="logo">J.A.R.V.I.S.</span>
+        <span id="provider-label" class="chip">gemini</span>
+        <span id="wakeword-label" class="chip">jarvis</span>
+      </div>
+      <div class="right">
+        <button id="btn-pin" title="Always on top">📌</button>
+        <button id="btn-settings" title="Settings">⚙</button>
+        <button id="btn-minimize" title="Minimize">—</button>
+        <button id="btn-close" title="Close">✕</button>
+      </div>
+    </header>
+
+    <main class="hud-grid">
+      <aside class="panel left-panel">
+        <div class="panel-title">SYSTEM TELEMETRY</div>
+        <div class="metric">
+          <span>CPU</span>
+          <div class="bar-track"><div id="bar-cpu" class="bar-fill"></div></div>
+          <span id="val-cpu">—</span>
+        </div>
+        <div class="metric">
+          <span>RAM</span>
+          <div class="bar-track"><div id="bar-ram" class="bar-fill"></div></div>
+          <span id="val-ram">—</span>
+        </div>
+        <div class="metric">
+          <span>DISK</span>
+          <div class="bar-track"><div id="bar-disk" class="bar-fill"></div></div>
+          <span id="val-disk">—</span>
+        </div>
+        <div class="metric">
+          <span>BATT</span>
+          <div class="bar-track"><div id="bar-batt" class="bar-fill"></div></div>
+          <span id="val-batt">—</span>
+        </div>
+        <div class="clock-block">
+          <div id="clock-time">00:00</div>
+          <div id="clock-date">—</div>
+        </div>
+      </aside>
+
+      <section class="center-stage">
+        <div class="viz-wrap">
+          <canvas id="viz-canvas"></canvas>
+          <div class="viz-status-wrap">
+            <div id="viz-status">SYSTEMS NOMINAL</div>
+            <div id="state-label">IDLE</div>
+          </div>
+        </div>
+        <p id="hud-tagline" class="tagline">Awaiting your command, sir.</p>
+      </section>
+
+      <aside class="panel right-panel">
+        <div class="panel-title">ACTIVITY</div>
+        <div id="activity-feed" class="feed"></div>
+        <div class="panel-title" style="margin-top:1rem">QUICK LAUNCH</div>
+        <div id="quicklaunch" class="quicklaunch">
+          <button class="ql-btn" data-app="chrome">Chrome</button>
+          <button class="ql-btn" data-app="code">VS Code</button>
+          <button class="ql-btn" data-app="spotify">Spotify</button>
+          <button class="ql-btn" data-app="https://youtube.com">YouTube</button>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="bottom-bar">
+      <div id="conversation" class="conversation"></div>
+      <div class="input-row">
+        <button id="btn-mic" class="mic-btn" title="Hold to talk (or continuous mode)">🎤</button>
+        <input id="text-input" type="text" placeholder="Type a command or speak…" autocomplete="off" />
+        <button id="btn-send" class="send-btn">SEND</button>
+      </div>
+    </footer>
+
+    <div id="confirm-overlay" class="overlay hidden">
+      <div class="confirm-card">
+        <h2>AUTHORIZATION REQUIRED</h2>
+        <p id="confirm-summary"></p>
+        <div class="confirm-actions">
+          <button id="confirm-authorize" class="primary">AUTHORIZE</button>
+          <button id="confirm-cancel">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-drawer" class="drawer hidden">
+      <div class="drawer-header">
+        <h2>SETTINGS</h2>
+        <button id="btn-close-settings">✕</button>
+      </div>
+      <div id="settings-body" class="drawer-body"></div>
+    </div>
+  </div>
+
+  <script src="scripts/voice.js"></script>
+  <script src="scripts/settings.js"></script>
+  <script src="scripts/renderer.js"></script>
+</body>
+</html>
