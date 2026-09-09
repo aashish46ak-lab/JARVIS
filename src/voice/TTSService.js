@@ -3,50 +3,45 @@
 const fetch = require('node-fetch');
 
 class TTSService {
-  constructor({ apiKey, voiceId, speed, enabled, logger }) {
+  constructor({ apiKey, voiceId, enabled, logger }) {
     this.apiKey = apiKey;
-    this.voiceId = voiceId || 'wDsJlOXPqcvIUKdLXjDs';
-    this.speed = speed || 1.0;
+    this.voiceId = voiceId || '14129c3e320149449d6bada6862f7338';
     this.enabled = enabled !== false;
     this.logger = logger;
   }
 
-  updateConfig({ apiKey, voiceId, speed, enabled }) {
+  updateConfig({ apiKey, voiceId, enabled }) {
     if (apiKey !== undefined) this.apiKey = apiKey;
     if (voiceId) this.voiceId = voiceId;
-    if (speed !== undefined) this.speed = speed;
     if (enabled !== undefined) this.enabled = enabled;
   }
 
   async synthesize(text) {
     if (!this.enabled) throw new Error('Voice output is disabled');
-    if (!this.apiKey) throw new Error('ElevenLabs API key not set');
+    if (!this.apiKey) throw new Error('Fish Audio API key not set (FISH_API_KEY)');
 
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}`;
+    const url = 'https://api.fish.audio/v1/tts';
     const body = {
-      text: text.slice(0, 2500),
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
-        stability: 0.45,
-        similarity_boost: 0.75,
-        style: 0.35,
-        use_speaker_boost: true,
-      },
+      text: String(text).slice(0, 2000),
+      reference_id: this.voiceId,
+      format: 'mp3',
+      normalize: true,
+      latency: 'normal',
     };
 
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'xi-api-key': this.apiKey,
+        Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
-        Accept: 'audio/mpeg',
+        model: 's1',
       },
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`ElevenLabs error ${res.status}: ${errText.slice(0, 200)}`);
+      throw new Error(`Fish Audio error ${res.status}: ${errText.slice(0, 300)}`);
     }
 
     const arrayBuffer = await res.arrayBuffer();
