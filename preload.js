@@ -6,6 +6,7 @@ const ALLOWED_BUS_EVENTS = new Set([
   'bus:state:change', 'bus:activity', 'bus:assistant:interim', 'bus:assistant:final',
   'bus:confirmation:request', 'bus:tool:executing', 'bus:tool:result', 'bus:error',
   'bus:assistant:speaking', 'bus:assistant:interrupted',
+  'bus:hologram:show', 'bus:hologram:hide', 'bus:hologram:view',
 ]);
 
 contextBridge.exposeInMainWorld('jarvis', {
@@ -50,15 +51,15 @@ contextBridge.exposeInMainWorld('jarvis', {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
   events: {
-    /** Subscribe to a whitelisted EventBus channel forwarded from main. Returns an unsubscribe fn. */
     on(channel, callback) {
-      const full = `bus:${channel}`;
+      const full = 'bus:' + channel;
       if (!ALLOWED_BUS_EVENTS.has(full)) {
-        throw new Error(`Channel "${channel}" is not on the allowed list.`);
+        console.warn('Channel not allowed:', channel);
+        return function () {};
       }
-      const listener = (_evt, payload) => callback(payload);
+      const listener = function (_evt, payload) { callback(payload); };
       ipcRenderer.on(full, listener);
-      return () => ipcRenderer.removeListener(full, listener);
+      return function () { ipcRenderer.removeListener(full, listener); };
     },
   },
 });
