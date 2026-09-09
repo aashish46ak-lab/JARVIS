@@ -2,7 +2,7 @@
 
 require('dotenv').config();
 
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 
 const eventBus = require('./src/core/EventBus');
@@ -17,6 +17,7 @@ const STTService = require('./src/voice/STTService');
 const si = require('systeminformation');
 
 let mainWindow = null;
+let tray = null;
 
 const config = new ConfigManager();
 const logger = new Logger({ logDir: path.join(app.getPath('userData'), 'logs') });
@@ -34,6 +35,54 @@ const ttsService = new TTSService({
   logger,
 });
 const sttService = new STTService({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey'), logger });
+
+function createTray() {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKElEQVQ4T2NkYGD4z0A6+M+ACzAyMjL8Z2BgmNEwYdQAhtGAYTRgGA0AABbuAf/kH0X2AAAAAElFTkSuQmCC',
+    'base64'
+  );
+  let icon = nativeImage.createFromBuffer(png);
+  if (icon.isEmpty()) icon = nativeImage.createEmpty();
+  tray = new Tray(icon);
+  tray.setToolTip('J.A.R.V.I.S. — click to open');
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open JARVIS',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    {
+      label: 'Start with Windows',
+      type: 'checkbox',
+      checked: !!app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked, openAsHidden: true });
+        config.set('startWithWindows', item.checked);
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.on('click', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) mainWindow.hide();
+    else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -63,6 +112,14 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Close → tray (JARVIS stays running in background)
+  mainWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
   });
 }
 
@@ -213,13 +270,22 @@ let proactiveTimer = null;
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
+  if (config.get('startWithWindows')) {
+    app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+  }
   proactiveTimer = setInterval(checkProactiveSuggestions, 30 * 1000);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('window-all-closed', () => {
+// Keep running in tray on Windows/Linux when window closed
+app.on('window-all-closed', (e) => {
+  if (!app.isQuitting) {
+    // stay alive for tray
+    return;
+  }
   if (proactiveTimer) clearInterval(proactiveTimer);
   if (process.platform !== 'darwin') app.quit();
 });
