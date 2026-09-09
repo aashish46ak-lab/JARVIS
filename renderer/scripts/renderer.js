@@ -28,14 +28,20 @@
   let dpr = window.devicePixelRatio || 1;
 
   function resizeCanvas() {
-    const size = canvas.parentElement.clientWidth;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+    const parent = canvas.parentElement;
+    let size = parent ? parent.clientWidth : 0;
+    if (!size || size < 50) size = Math.min(480, Math.floor(window.innerWidth * 0.4));
+    size = Math.max(size, 280);
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(size * dpr);
+    canvas.height = Math.floor(size * dpr);
     canvas.style.width = size + 'px';
     canvas.style.height = size + 'px';
   }
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 100);
+  setTimeout(resizeCanvas, 500);
 
   let t = 0;
   const STATE_COLORS = {
@@ -47,6 +53,7 @@
     requestAnimationFrame(drawFrame);
     t += 0.016;
     const w = canvas.width, h = canvas.height;
+    if (w < 10 || h < 10) return;
     const cx = w / 2, cy = h / 2;
     const baseR = Math.min(w, h) * 0.36;
     ctx.clearRect(0, 0, w, h);
@@ -327,7 +334,7 @@
 
   JarvisVoice.on('micLevel', (level) => { micLevel = level; });
   JarvisVoice.on('ttsLevel', (level) => { ttsLevel = level; });
-  JarvisVoice.on('wake', () => { setState('listening'); pushActivity('VOICE DETECTED — WAKE WORD'); });
+  JarvisVoice.on('wake', () => { setState('listening'); pushActivity('VOICE DETECTED'); });
   JarvisVoice.on('interim', () => { if (appState !== 'thinking' && appState !== 'speaking') setState('hearing'); });
   JarvisVoice.on('transcript', (text) => { pushActivity('HEARD: "' + text + '"'); handleUserUtterance(text); });
   JarvisVoice.on('micError', ({ message }) => { pushActivity(message, 'error'); setState('error'); setTimeout(() => setState('idle'), 2500); });
@@ -380,6 +387,7 @@
     listeningMode = config.listeningMode || 'continuous';
     const useWake = !!config.wakeWordEnabled;
     JarvisVoice.configure({ wakeWordEnabled: useWake, wakeWord: config.wakeWord || 'jarvis', listeningMode: listeningMode });
+    resizeCanvas();
     await JarvisVoice.initMicLevelMeter();
     setState('idle');
     pushMessage('system', 'Good evening, sir. All systems are online.');
