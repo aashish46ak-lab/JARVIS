@@ -1,28 +1,27 @@
 'use strict';
 
 const Store = require('electron-store');
-const path = require('path');
 
 const DEFAULTS = {
   firstRunComplete: false,
-  aiProvider: process.env.AI_PROVIDER || 'gemini',
+  aiProvider: process.env.AI_PROVIDER || 'groq',
+  groqApiKey: process.env.GROQ_API_KEY || '',
+  groqModel: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-  openaiApiKey: process.env.OPENAI_API_KEY || '',
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+  fishApiKey: process.env.FISH_API_KEY || '',
+  fishVoiceId: process.env.FISH_VOICE_ID || '14129c3e320149449d6bada6862f7338',
   elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
-  elevenLabsVoiceId: process.env.ELEVENLABS_VOICE_ID || 'wDsJlOXPqcvIUKdLXjDs',
+  elevenLabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '',
   voiceEnabled: true,
   speakingSpeed: 1.0,
-  listeningMode: 'continuous', // continuous | push-to-talk
-  wakeWordEnabled: true,
+  listeningMode: 'continuous',
+  wakeWordEnabled: false,
   wakeWord: 'jarvis',
-  animationIntensity: 'normal',
+  animationIntensity: 'high',
   alwaysOnTop: false,
   startMinimized: false,
-  permissionMode: 'dangerous-only', // always | dangerous-only | never
+  permissionMode: 'dangerous-only',
 };
 
 class ConfigManager {
@@ -52,12 +51,11 @@ class ConfigManager {
   getAllMasked() {
     const all = this.getAll();
     const mask = (s) => (s && s.length > 8 ? s.slice(0, 4) + '••••' + s.slice(-4) : s ? '••••' : '');
-    // Never send real API keys to the renderer
     return {
       ...all,
+      groqApiKey: mask(all.groqApiKey),
       geminiApiKey: mask(all.geminiApiKey),
-      openaiApiKey: mask(all.openaiApiKey),
-      anthropicApiKey: mask(all.anthropicApiKey),
+      fishApiKey: mask(all.fishApiKey),
       elevenLabsApiKey: mask(all.elevenLabsApiKey),
     };
   }
