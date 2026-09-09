@@ -3,17 +3,19 @@
 const fetch = require('node-fetch');
 
 class TTSService {
-  constructor({ apiKey, voiceId, enabled, logger }) {
+  constructor({ apiKey, voiceId, enabled, speed, logger }) {
     this.apiKey = apiKey;
     this.voiceId = voiceId || '14129c3e320149449d6bada6862f7338';
     this.enabled = enabled !== false;
+    this.speed = speed || 1.0;
     this.logger = logger;
   }
 
-  updateConfig({ apiKey, voiceId, enabled }) {
+  updateConfig({ apiKey, voiceId, enabled, speed }) {
     if (apiKey !== undefined) this.apiKey = apiKey;
     if (voiceId) this.voiceId = voiceId;
     if (enabled !== undefined) this.enabled = enabled;
+    if (speed !== undefined) this.speed = speed;
   }
 
   async synthesize(text) {
@@ -37,7 +39,8 @@ class TTSService {
             reference_id: this.voiceId,
             format: 'mp3',
             normalize: true,
-            latency: 'normal',
+            latency: 'balanced',
+            prosody: { speed: this.speed || 1.0, volume: 0 },
           }),
         });
 
