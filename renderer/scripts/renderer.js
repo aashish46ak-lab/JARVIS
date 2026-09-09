@@ -49,10 +49,7 @@
 
   function hexA(hex, alpha) {
     var c = hex.replace('#', '');
-    var r = parseInt(c.substring(0, 2), 16);
-    var g = parseInt(c.substring(2, 4), 16);
-    var b = parseInt(c.substring(4, 6), 16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+    return 'rgba(' + parseInt(c.substring(0, 2), 16) + ',' + parseInt(c.substring(2, 4), 16) + ',' + parseInt(c.substring(4, 6), 16) + ',' + alpha + ')';
   }
 
   function drawRing(cx, cy, r, color, alpha, rotation, segments, coverage) {
@@ -61,8 +58,7 @@
     var gap = (Math.PI * 2) / segments;
     for (var i = 0; i < segments; i++) {
       var start = i * gap + rotation;
-      var end = start + gap * coverage;
-      ctx.beginPath(); ctx.arc(cx, cy, r, start, end); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, r, start, start + gap * coverage); ctx.stroke();
     }
   }
 
@@ -89,26 +85,19 @@
     ctx.clearRect(0, 0, w, h);
     var color = STATE_COLORS[appState] || '#4fd8ff';
     var intensityMul = animIntensity === 'low' ? 0.5 : animIntensity === 'high' ? 1.4 : 1;
-
     var energy = 0.2;
     if (appState === 'hearing' || appState === 'listening') energy = 0.25 + micLevel * 0.8;
     else if (appState === 'speaking') energy = 0.3 + ttsLevel * 0.85;
     else if (appState === 'thinking' || appState === 'executing') energy = 0.45 + Math.sin(t * 4) * 0.2;
     else if (appState === 'idle') energy = 0.22 + Math.sin(t * 0.9) * 0.08;
-    else if (appState === 'waiting') energy = 0.35 + Math.sin(t * 2.5) * 0.15;
-    else if (appState === 'error') energy = 0.5 + Math.sin(t * 8) * 0.2;
     energy *= intensityMul;
-
     var ox = cx + Math.sin(t * 0.7) * R * 0.008;
     var oy = cy + Math.sin(t * 1.1) * R * 0.01;
-
     var glow = ctx.createRadialGradient(ox, oy, R * 0.15, ox, oy, R * 1.05);
     glow.addColorStop(0, hexA(color, 0.08 + energy * 0.12));
-    glow.addColorStop(0.7, hexA(color, 0.03));
     glow.addColorStop(1, hexA(color, 0));
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(ox, oy, R * 1.05, 0, Math.PI * 2); ctx.fill();
-
     var rings = [
       { r: 0.98, segs: 48, cov: 0.55, a: 0.35, sp: 0.15 },
       { r: 0.88, segs: 36, cov: 0.4, a: 0.45, sp: -0.22 },
@@ -122,30 +111,21 @@
       drawRing(ox, oy, R * ring.r, color, ring.a * (0.7 + energy * 0.5), t * ring.sp * spin, ring.segs, ring.cov);
     }
     drawTicks(ox, oy, R * 0.98, color, t * 0.03);
-    drawTicks(ox, oy, R * 0.55, color, -t * 0.05);
-
     ctx.strokeStyle = hexA(color, 0.85);
     ctx.lineWidth = 3.5 * dpr;
     ctx.lineCap = 'round';
     var arcStart = -Math.PI / 2;
     var arcLen = Math.PI * 2 * Math.min(0.95, 0.15 + energy * 0.7);
-    ctx.beginPath();
-    ctx.arc(ox, oy, R * 0.48, arcStart + t * 0.4, arcStart + t * 0.4 + arcLen);
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(ox, oy, R * 0.48, arcStart + t * 0.4, arcStart + t * 0.4 + arcLen); ctx.stroke();
     ctx.lineCap = 'butt';
-
     var disc = ctx.createRadialGradient(ox, oy, 0, ox, oy, R * 0.42);
     disc.addColorStop(0, hexA(color, 0.25 + energy * 0.2));
-    disc.addColorStop(0.6, hexA(color, 0.08));
     disc.addColorStop(1, hexA(color, 0));
     ctx.fillStyle = disc;
     ctx.beginPath(); ctx.arc(ox, oy, R * 0.42, 0, Math.PI * 2); ctx.fill();
-
     ctx.strokeStyle = hexA(color, 0.7);
     ctx.lineWidth = 1.8 * dpr;
     ctx.beginPath(); ctx.arc(ox, oy, R * 0.36, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(ox, oy, R * 0.28, 0, Math.PI * 2); ctx.stroke();
-
     var coreR = R * (0.08 + energy * 0.06);
     var core = ctx.createRadialGradient(ox, oy, 0, ox, oy, coreR * 2.5);
     core.addColorStop(0, hexA('#ffffff', 0.95));
@@ -153,21 +133,6 @@
     core.addColorStop(1, hexA(color, 0));
     ctx.fillStyle = core;
     ctx.beginPath(); ctx.arc(ox, oy, coreR * 2.5, 0, Math.PI * 2); ctx.fill();
-
-    if (energy > 0.3) {
-      for (var i = 0; i < 24; i++) {
-        var ang = (i / 24) * Math.PI * 2 + t * 0.5;
-        var j = Math.abs(Math.sin(ang * 3 + t * 8)) * energy;
-        var r1 = R * 0.12;
-        var r2 = r1 + R * (0.05 + j * 0.12);
-        ctx.strokeStyle = hexA(color, 0.3 + j * 0.5);
-        ctx.lineWidth = 1.2 * dpr;
-        ctx.beginPath();
-        ctx.moveTo(ox + Math.cos(ang) * r1, oy + Math.sin(ang) * r1);
-        ctx.lineTo(ox + Math.cos(ang) * r2, oy + Math.sin(ang) * r2);
-        ctx.stroke();
-      }
-    }
   }
   requestAnimationFrame(drawFrame);
 
@@ -178,8 +143,7 @@
     if (ct) ct.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (cd) cd.textContent = now.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'short' });
   }
-  tickClock();
-  setInterval(tickClock, 1000);
+  tickClock(); setInterval(tickClock, 1000);
 
   function setBar(key, percent) {
     var bar = document.getElementById('bar-' + key);
@@ -192,14 +156,11 @@
   async function refreshTelemetry() {
     try {
       var s = await window.jarvis.system.getStatus();
-      setBar('cpu', s.cpuLoadPercent);
-      setBar('ram', s.ramUsedPercent);
-      setBar('disk', s.diskUsedPercent);
-      setBar('batt', s.batteryPercent);
+      setBar('cpu', s.cpuLoadPercent); setBar('ram', s.ramUsedPercent);
+      setBar('disk', s.diskUsedPercent); setBar('batt', s.batteryPercent);
     } catch (e) {}
   }
-  refreshTelemetry();
-  setInterval(refreshTelemetry, 15000);
+  refreshTelemetry(); setInterval(refreshTelemetry, 15000);
 
   function pushActivity(text, level) {
     var feed = document.getElementById('activity-feed');
@@ -210,7 +171,6 @@
     feed.prepend(item);
     while (feed.children.length > 6) feed.removeChild(feed.lastChild);
   }
-
   function pushMessage(role, text) {
     var convo = document.getElementById('conversation');
     if (!convo) return;
@@ -220,7 +180,6 @@
     convo.appendChild(div);
     convo.scrollTop = convo.scrollHeight;
   }
-
   function showConfirmation(payload) {
     var overlay = document.getElementById('confirm-overlay');
     document.getElementById('confirm-summary').textContent = payload.summary;
@@ -228,28 +187,17 @@
     setState('waiting');
     var authorizeBtn = document.getElementById('confirm-authorize');
     var cancelBtn = document.getElementById('confirm-cancel');
-    var cleanup = function () {
-      overlay.classList.add('hidden');
-      authorizeBtn.onclick = null;
-      cancelBtn.onclick = null;
-    };
+    var cleanup = function () { overlay.classList.add('hidden'); authorizeBtn.onclick = null; cancelBtn.onclick = null; };
     authorizeBtn.onclick = function () { window.jarvis.confirmation.respond(payload.id, true); cleanup(); };
     cancelBtn.onclick = function () { window.jarvis.confirmation.respond(payload.id, false); cleanup(); };
   }
-
   function cleanSpeech(text) {
     if (!text) return '';
-    return String(text)
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/`[^`]+`/g, ' ')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      .replace(/#{1,6}\s*/g, '')
-      .replace(/[_~|>]/g, ' ')
-      .replace(/\[[^\]]*\]\([^)]*\)/g, ' ')
-      .replace(/https?:\/\/\S+/g, 'link')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    return String(text).replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]+`/g, ' ')
+      .replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1')
+      .replace(/#{1,6}\s*/g, '').replace(/[_~|>]/g, ' ')
+      .replace(/\[[^\]]*\]\([^)]*\)/g, ' ').replace(/https?:\/\/\S+/g, 'link')
+      .replace(/\s{2,}/g, ' ').trim();
   }
 
   var processing = false;
@@ -272,14 +220,20 @@
 
   async function speakReply(text) {
     try {
-      if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') JarvisVoice.stopContinuousListening();
+      if (typeof JarvisVoice !== 'undefined') JarvisVoice.stopContinuousListening();
       setState('speaking');
       if (typeof JarvisVoice !== 'undefined') await JarvisVoice.speak(cleanSpeech(text));
-    } catch (err) {
-      console.warn('speak failed', err);
-    }
+    } catch (err) { console.warn('speak failed', err); }
     setState('idle');
-    if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') JarvisVoice.startContinuousListening();
+    // CRITICAL: always resume listening after speech
+    if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') {
+      setTimeout(function () {
+        JarvisVoice.configure({ listeningMode: 'continuous', wakeWordEnabled: false });
+        JarvisVoice.startContinuousListening();
+        setState('listening');
+        pushActivity('Listening…');
+      }, 350);
+    }
   }
 
   document.getElementById('btn-send').addEventListener('click', sendTextInput);
@@ -310,6 +264,32 @@
     document.getElementById('btn-pin').style.color = pinned ? 'var(--cyan)' : '';
   });
 
+  // Mic button = hold-to-talk backup
+  var micBtn = document.getElementById('btn-mic');
+  var pttHeld = false;
+  if (micBtn) {
+    micBtn.style.display = '';
+    micBtn.addEventListener('mousedown', async function () {
+      pttHeld = true;
+      if (typeof JarvisVoice !== 'undefined') {
+        JarvisVoice.stopContinuousListening();
+        await JarvisVoice.startPushToTalkRecording();
+      }
+      setState('listening');
+      micBtn.classList.add('listening');
+    });
+    window.addEventListener('mouseup', async function () {
+      if (!pttHeld) return;
+      pttHeld = false;
+      micBtn.classList.remove('listening');
+      setState('thinking');
+      if (typeof JarvisVoice !== 'undefined') await JarvisVoice.stopPushToTalkRecording();
+      if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') {
+        JarvisVoice.startContinuousListening();
+      }
+    });
+  }
+
   if (typeof JarvisVoice !== 'undefined') {
     JarvisVoice.on('micLevel', function (level) { micLevel = level; });
     JarvisVoice.on('ttsLevel', function (level) { ttsLevel = level; });
@@ -327,65 +307,53 @@
       setTimeout(function () { setState('idle'); }, 2500);
     });
     JarvisVoice.on('fallbackPushToTalk', function (payload) {
-      pushActivity((payload && payload.message) || 'Using push-to-talk', 'warn');
+      pushActivity((payload && payload.message) || 'Use mic button or type', 'warn');
     });
-    JarvisVoice.on('transcribing', function (active) { if (active) setState('thinking'); });
   }
 
   function safeOn(channel, cb) {
-    try {
-      if (window.jarvis && window.jarvis.events) window.jarvis.events.on(channel, cb);
-    } catch (e) {
-      console.warn('event subscribe failed', channel, e);
-    }
+    try { if (window.jarvis && window.jarvis.events) window.jarvis.events.on(channel, cb); }
+    catch (e) { console.warn(e); }
   }
-  safeOn('state:change', function (payload) { setState(payload.state); });
-  safeOn('activity', function (payload) { pushActivity(payload.text, payload.level); });
+  safeOn('state:change', function (p) { setState(p.state); });
+  safeOn('activity', function (p) { pushActivity(p.text, p.level); });
   safeOn('confirmation:request', showConfirmation);
-  safeOn('error', function (payload) { pushActivity(payload.message, 'error'); });
-  safeOn('assistant:final', function (payload) {
-    if (payload && payload.proactive) {
-      pushMessage('jarvis', payload.text);
-      speakReply(payload.text);
-    }
+  safeOn('error', function (p) { pushActivity(p.message, 'error'); });
+  safeOn('assistant:final', function (p) {
+    if (p && p.proactive) { pushMessage('jarvis', p.text); speakReply(p.text); }
   });
-  safeOn('hologram:show', function (payload) {
-    if (typeof JarvisHologram !== 'undefined') JarvisHologram.show(payload || {});
-    pushActivity('HOLOGRAM: ' + ((payload && payload.label) || (payload && payload.object) || 'model'));
+  safeOn('hologram:show', function (p) {
+    if (typeof JarvisHologram !== 'undefined') JarvisHologram.show(p || {});
+    pushActivity('HOLOGRAM: ' + ((p && p.label) || (p && p.object) || 'model'));
   });
-  safeOn('hologram:hide', function () {
-    if (typeof JarvisHologram !== 'undefined') JarvisHologram.hide();
-  });
-  safeOn('hologram:view', function (payload) {
-    if (typeof JarvisHologram !== 'undefined') JarvisHologram.setView(payload && payload.view);
-  });
+  safeOn('hologram:hide', function () { if (typeof JarvisHologram !== 'undefined') JarvisHologram.hide(); });
+  safeOn('hologram:view', function (p) { if (typeof JarvisHologram !== 'undefined') JarvisHologram.setView(p && p.view); });
 
   async function bootstrap() {
     try {
       if (!window.jarvis) {
-        document.body.innerHTML = '<div style="color:#4fd8ff;padding:2rem">JARVIS preload failed. Restart the app.</div>';
+        document.body.innerHTML = '<div style="color:#4fd8ff;padding:2rem">JARVIS preload failed. Restart.</div>';
         return;
       }
       var config = await window.jarvis.config.getAll();
-      listeningMode = config.listeningMode || 'continuous';
+      listeningMode = 'continuous';
       animIntensity = config.animationIntensity || 'high';
       document.getElementById('provider-label').textContent = config.aiProvider || 'groq';
-      document.getElementById('wakeword-label').textContent = config.wakeWordEnabled ? (config.wakeWord || 'jarvis') : 'open mic';
+      document.getElementById('wakeword-label').textContent = 'open mic';
 
       if (typeof JarvisSettings !== 'undefined') {
         JarvisSettings.wireDrawer(function (updated) {
-          listeningMode = updated.listeningMode;
+          listeningMode = updated.listeningMode || 'continuous';
           animIntensity = updated.animationIntensity;
           document.getElementById('provider-label').textContent = updated.aiProvider;
           document.getElementById('wakeword-label').textContent = updated.wakeWordEnabled ? updated.wakeWord : 'open mic';
           if (typeof JarvisVoice !== 'undefined') {
             JarvisVoice.configure({
-              wakeWordEnabled: updated.wakeWordEnabled,
+              wakeWordEnabled: !!updated.wakeWordEnabled,
               wakeWord: updated.wakeWord,
-              listeningMode: updated.listeningMode,
+              listeningMode: listeningMode,
             });
-            if (updated.listeningMode === 'continuous') JarvisVoice.startContinuousListening();
-            else JarvisVoice.stopContinuousListening();
+            if (listeningMode === 'continuous') JarvisVoice.startContinuousListening();
           }
         });
       }
@@ -404,40 +372,32 @@
         await startHud();
       }
     } catch (err) {
-      console.error('bootstrap failed', err);
       document.body.innerHTML = '<div style="color:#ff5470;padding:2rem">Startup error: ' + (err.message || err) + '</div>';
     }
   }
 
   async function startHud() {
     try {
-      var config = await window.jarvis.config.getAll();
-      listeningMode = config.listeningMode || 'continuous';
-      var useWake = !!config.wakeWordEnabled;
+      listeningMode = 'continuous';
       if (typeof JarvisVoice !== 'undefined') {
-        JarvisVoice.configure({
-          wakeWordEnabled: useWake,
-          wakeWord: config.wakeWord || 'jarvis',
-          listeningMode: listeningMode,
-        });
+        JarvisVoice.configure({ wakeWordEnabled: false, wakeWord: 'jarvis', listeningMode: 'continuous' });
       }
       resizeCanvas();
-      var micEl = document.getElementById('btn-mic');
-      if (micEl) micEl.style.display = 'none';
       if (typeof JarvisVoice !== 'undefined') {
         try { await JarvisVoice.initMicLevelMeter(); } catch (e) { console.warn(e); }
       }
-      setState('idle');
+      setState('listening');
       pushMessage('system', 'Good evening, sir. All systems are online.');
-      pushActivity(useWake ? 'Say jarvis then your command' : 'Listening — just speak');
-      speakReply('Good evening, sir. All systems are online. I am listening.').catch(function () {});
-      if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') {
-        try { JarvisVoice.startContinuousListening(); } catch (e) { console.warn(e); }
-      }
+      pushActivity('Listening — just speak (or hold mic / type)');
+      await speakReply('Good evening, sir. All systems are online. I am listening.');
     } catch (err) {
       console.error('startHud failed', err);
-      pushActivity('HUD start error: ' + (err.message || err), 'error');
-      setState('idle');
+      pushActivity('HUD error: ' + (err.message || err), 'error');
+      if (typeof JarvisVoice !== 'undefined') {
+        JarvisVoice.configure({ listeningMode: 'continuous', wakeWordEnabled: false });
+        JarvisVoice.startContinuousListening();
+      }
+      setState('listening');
     }
   }
 
