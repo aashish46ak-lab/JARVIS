@@ -1,6 +1,7 @@
 'use strict';
 
 const systemPrompt = require('./SystemPrompt');
+const GroqClient = require('./GroqClient');
 const GeminiClient = require('./GeminiClient');
 
 class ConversationManager {
@@ -17,7 +18,7 @@ class ConversationManager {
   }
 
   refreshProvider() {
-    const provider = this.config.get('aiProvider') || 'gemini';
+    const provider = this.config.get('aiProvider') || 'groq';
     if (provider === 'gemini') {
       this.provider = new GeminiClient({
         apiKey: this.config.get('geminiApiKey'),
@@ -25,9 +26,9 @@ class ConversationManager {
         logger: this.logger,
       });
     } else {
-      this.provider = new GeminiClient({
-        apiKey: this.config.get('geminiApiKey'),
-        model: this.config.get('geminiModel'),
+      this.provider = new GroqClient({
+        apiKey: this.config.get('groqApiKey'),
+        model: this.config.get('groqModel'),
         logger: this.logger,
       });
     }
@@ -49,7 +50,7 @@ class ConversationManager {
     while (iterations < maxIterations) {
       iterations += 1;
       const messages = [
-        { role: 'user', content: systemPrompt + '\n\nCurrent time: ' + new Date().toLocaleString() },
+        { role: 'system', content: systemPrompt + '\n\nCurrent time: ' + new Date().toLocaleString() },
         ...this.history,
       ];
 
