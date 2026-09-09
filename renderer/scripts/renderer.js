@@ -1,22 +1,16 @@
 'use strict';
 
 (function main() {
-  // ---------------------------------------------------------------- state
-  let appState = 'idle'; // idle | listening | hearing | thinking | waiting | executing | speaking | error
+  let appState = 'idle';
   let micLevel = 0;
   let ttsLevel = 0;
-  let animIntensity = 'normal';
+  let animIntensity = 'high';
   let listeningMode = 'continuous';
 
   const STATUS_TEXT = {
-    idle: 'SYSTEMS NOMINAL',
-    listening: 'LISTENING',
-    hearing: 'HEARING',
-    thinking: 'ANALYZING',
-    waiting: 'AWAITING AUTHORIZATION',
-    executing: 'EXECUTING',
-    speaking: 'SPEAKING',
-    error: 'ERROR',
+    idle: 'SYSTEMS NOMINAL', listening: 'LISTENING', hearing: 'HEARING',
+    thinking: 'ANALYZING', waiting: 'AWAITING AUTHORIZATION',
+    executing: 'EXECUTING', speaking: 'SPEAKING', error: 'ERROR',
   };
 
   function setState(next) {
@@ -29,7 +23,6 @@
     if (micBtn) micBtn.classList.toggle('listening', next === 'listening' || next === 'hearing');
   }
 
-  // ---------------------------------------------------------------- canvas visualizer
   const canvas = document.getElementById('viz-canvas');
   const ctx = canvas.getContext('2d');
   let dpr = window.devicePixelRatio || 1;
@@ -38,8 +31,8 @@
     const size = canvas.parentElement.clientWidth;
     canvas.width = size * dpr;
     canvas.height = size * dpr;
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
   }
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
@@ -55,98 +48,129 @@
     t += 0.016;
     const w = canvas.width, h = canvas.height;
     const cx = w / 2, cy = h / 2;
-    const baseR = Math.min(w, h) * 0.34;
+    const baseR = Math.min(w, h) * 0.36;
     ctx.clearRect(0, 0, w, h);
-
     const color = STATE_COLORS[appState] || '#4fd8ff';
-    const intensityMul = animIntensity === 'low' ? 0.5 : animIntensity === 'high' ? 1.6 : 1;
+    const intensityMul = animIntensity === 'low' ? 0.55 : animIntensity === 'high' ? 1.55 : 1;
 
-    let energy = 0.15;
-    if (appState === 'hearing' || appState === 'listening') energy = 0.15 + micLevel * 0.85;
-    else if (appState === 'speaking') energy = 0.15 + ttsLevel * 0.85;
-    else if (appState === 'thinking' || appState === 'executing') energy = 0.35 + Math.sin(t * 4) * 0.15;
-    else if (appState === 'idle') energy = 0.2 + Math.sin(t * 1.2) * 0.08;
-    else if (appState === 'waiting') energy = 0.3 + Math.sin(t * 3) * 0.2;
-    else if (appState === 'error') energy = 0.4 + Math.sin(t * 8) * 0.2;
+    let energy = 0.18;
+    if (appState === 'hearing' || appState === 'listening') energy = 0.2 + micLevel * 0.85;
+    else if (appState === 'speaking') energy = 0.25 + ttsLevel * 0.9;
+    else if (appState === 'thinking' || appState === 'executing') energy = 0.4 + Math.sin(t * 5) * 0.2;
+    else if (appState === 'idle') energy = 0.22 + Math.sin(t * 1.1) * 0.1;
+    else if (appState === 'waiting') energy = 0.35 + Math.sin(t * 3) * 0.2;
+    else if (appState === 'error') energy = 0.45 + Math.sin(t * 9) * 0.25;
     energy *= intensityMul;
 
-    const ringSpeed = (appState === 'thinking' || appState === 'executing') ? 2.2 : 0.4;
-    drawRing(cx, cy, baseR * 1.35, color, 0.35, t * ringSpeed, 10, 0.55);
-    drawRing(cx, cy, baseR * 1.18, color, 0.5, -t * ringSpeed * 0.7, 18, 0.35);
-    drawTicks(cx, cy, baseR * 1.5, color, t * 0.05);
+    const hoverY = Math.sin(t * 1.4) * baseR * 0.035;
+    const hoverX = Math.sin(t * 0.9) * baseR * 0.012;
+    const ox = cx + hoverX;
+    const oy = cy + hoverY;
 
-    // Subtle head motion while speaking
-    const headOffsetX = appState === 'speaking' ? Math.sin(t * 1.8) * baseR * 0.04 * energy : 0;
-    const headOffsetY = appState === 'speaking' ? Math.cos(t * 1.3) * baseR * 0.025 * energy : 0;
-    const ox = cx + headOffsetX;
-    const oy = cy + headOffsetY;
+    const atm = ctx.createRadialGradient(ox, oy, baseR * 0.2, ox, oy, baseR * 1.9);
+    atm.addColorStop(0, hexA(color, 0.12 + energy * 0.15));
+    atm.addColorStop(0.5, hexA(color, 0.04));
+    atm.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = atm;
+    ctx.beginPath(); ctx.arc(ox, oy, baseR * 1.9, 0, Math.PI * 2); ctx.fill();
 
-    const coreR = baseR * (0.55 + energy * 0.35);
-    const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, coreR * 1.4);
-    grad.addColorStop(0, hexA(color, 0.95));
-    grad.addColorStop(0.45, hexA(color, 0.4));
-    grad.addColorStop(1, hexA(color, 0));
-    ctx.fillStyle = grad;
+    const ringSpeed = (appState === 'thinking' || appState === 'executing') ? 2.4 : 0.5;
+    drawRing(ox, oy, baseR * 1.58, color, 0.22, t * ringSpeed * 0.25, 28, 0.35);
+    drawRing(ox, oy, baseR * 1.42, color, 0.32, -t * ringSpeed * 0.45, 18, 0.45);
+    drawRing(ox, oy, baseR * 1.26, color, 0.42, t * ringSpeed * 0.7, 14, 0.5);
+    drawRing(ox, oy, baseR * 1.08, color, 0.55, -t * ringSpeed * 0.9, 22, 0.3);
+    drawTicks(ox, oy, baseR * 1.68, color, t * 0.04);
+    drawTicks(ox, oy, baseR * 0.88, color, -t * 0.06);
+
+    const suitScale = 1 + energy * 0.08;
+    const bodyH = baseR * 0.95 * suitScale;
+    const bodyW = baseR * 0.55 * suitScale;
+
+    const bodyGrad = ctx.createRadialGradient(ox, oy - bodyH * 0.05, 0, ox, oy, bodyH * 0.85);
+    bodyGrad.addColorStop(0, hexA(color, 0.55 + energy * 0.3));
+    bodyGrad.addColorStop(0.45, hexA(color, 0.22));
+    bodyGrad.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.arc(ox, oy, coreR * 1.4, 0, Math.PI * 2);
+    ctx.ellipse(ox, oy + bodyH * 0.05, bodyW * 0.55, bodyH * 0.42, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Dual eye lights that pulse with TTS energy
-    if (appState === 'speaking' || appState === 'hearing') {
-      const eyeDist = coreR * 0.38;
-      const eyeR = coreR * (0.12 + energy * 0.08);
-      const eyeAlpha = 0.55 + energy * 0.45;
+    ctx.strokeStyle = hexA(color, 0.75);
+    ctx.lineWidth = 2.4 * dpr;
+    ctx.beginPath();
+    ctx.ellipse(ox, oy + bodyH * 0.02, bodyW * 0.42, bodyH * 0.32, 0, -Math.PI * 0.15, Math.PI * 1.15);
+    ctx.stroke();
+
+    const reactorR = baseR * (0.14 + energy * 0.12);
+    const reactor = ctx.createRadialGradient(ox, oy + bodyH * 0.02, 0, ox, oy + bodyH * 0.02, reactorR * 2.2);
+    reactor.addColorStop(0, hexA('#ffffff', 0.95));
+    reactor.addColorStop(0.25, hexA(color, 0.9));
+    reactor.addColorStop(0.6, hexA(color, 0.35));
+    reactor.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = reactor;
+    ctx.beginPath(); ctx.arc(ox, oy + bodyH * 0.02, reactorR * 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = hexA('#eafcff', 0.95);
+    ctx.beginPath(); ctx.arc(ox, oy + bodyH * 0.02, reactorR * 0.45, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = hexA(color, 0.65);
+    ctx.lineWidth = 2 * dpr;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(ox + side * bodyW * 0.48, oy - bodyH * 0.12, bodyW * 0.28, side > 0 ? -0.4 : Math.PI - 0.2, side > 0 ? 0.9 : Math.PI + 0.4);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = hexA(color, 0.7);
+    ctx.lineWidth = 2.2 * dpr;
+    ctx.beginPath();
+    ctx.arc(ox, oy - bodyH * 0.28, bodyW * 0.38, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+
+    if (appState === 'speaking' || appState === 'hearing' || energy > 0.35) {
+      const eyeY = oy - bodyH * 0.32;
+      const eyeDist = bodyW * 0.18;
+      const eyeR = baseR * (0.04 + energy * 0.05);
+      const eyeA = 0.6 + energy * 0.4;
       for (const side of [-1, 1]) {
         const ex = ox + side * eyeDist;
-        const ey = oy - coreR * 0.08;
-        const eyeGrad = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR * 2.2);
-        eyeGrad.addColorStop(0, hexA('#ffffff', eyeAlpha));
-        eyeGrad.addColorStop(0.4, hexA(color, eyeAlpha * 0.8));
-        eyeGrad.addColorStop(1, hexA(color, 0));
-        ctx.fillStyle = eyeGrad;
-        ctx.beginPath();
-        ctx.arc(ex, ey, eyeR * 2.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = hexA('#e8fbff', 0.9);
-        ctx.beginPath();
-        ctx.arc(ex, ey, eyeR * 0.45, 0, Math.PI * 2);
-        ctx.fill();
+        const eg = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, eyeR * 3);
+        eg.addColorStop(0, hexA('#ffffff', eyeA));
+        eg.addColorStop(0.35, hexA(color, eyeA * 0.85));
+        eg.addColorStop(1, hexA(color, 0));
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(ex, eyeY, eyeR * 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = hexA('#f0fdff', 0.95);
+        ctx.beginPath(); ctx.arc(ex, eyeY, eyeR * 0.5, 0, Math.PI * 2); ctx.fill();
       }
     }
 
-    ctx.strokeStyle = hexA(color, 0.9);
-    ctx.lineWidth = 2.2 * dpr;
-    ctx.beginPath();
-    ctx.arc(ox, oy, coreR * 0.62, 0, Math.PI * 2);
-    ctx.stroke();
-
-    const bars = 48;
-    for (let i = 0; i < bars; i++) {
-      const angle = (i / bars) * Math.PI * 2 + t * 0.18;
+    for (let i = 0; i < 36; i++) {
+      const angle = (i / 36) * Math.PI * 2 + t * 0.2;
       const jitter = (appState === 'hearing' || appState === 'speaking')
-        ? Math.abs(Math.sin(angle * 7 + t * 12)) * energy
-        : energy * 0.28;
-      const r1 = baseR * 0.78;
-      const r2 = r1 + baseR * (0.06 + jitter * 0.32);
-      ctx.strokeStyle = hexA(color, 0.45 + jitter * 0.55);
-      ctx.lineWidth = 1.7 * dpr;
+        ? Math.abs(Math.sin(angle * 6 + t * 10)) * energy : energy * 0.25;
+      const r1 = baseR * 0.22;
+      const r2 = r1 + baseR * (0.08 + jitter * 0.35);
+      ctx.strokeStyle = hexA(color, 0.35 + jitter * 0.55);
+      ctx.lineWidth = 1.5 * dpr;
       ctx.beginPath();
-      ctx.moveTo(ox + Math.cos(angle) * r1, oy + Math.sin(angle) * r1);
-      ctx.lineTo(ox + Math.cos(angle) * r2, oy + Math.sin(angle) * r2);
+      ctx.moveTo(ox + Math.cos(angle) * r1, oy + bodyH * 0.02 + Math.sin(angle) * r1);
+      ctx.lineTo(ox + Math.cos(angle) * r2, oy + bodyH * 0.02 + Math.sin(angle) * r2);
       ctx.stroke();
     }
 
-    if (appState === 'speaking') {
-      ctx.strokeStyle = hexA(color, 0.25 + energy * 0.35);
-      ctx.lineWidth = 1.2 * dpr;
-      const arcR = baseR * (1.55 + energy * 0.15);
-      ctx.beginPath();
-      ctx.arc(ox, oy, arcR, t * 2, t * 2 + Math.PI * 0.7);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(ox, oy, arcR * 1.08, -t * 1.6, -t * 1.6 + Math.PI * 0.5);
-      ctx.stroke();
+    if (appState === 'speaking' || appState === 'thinking') {
+      ctx.strokeStyle = hexA(color, 0.3 + energy * 0.35);
+      ctx.lineWidth = 1.3 * dpr;
+      const arcR = baseR * (1.35 + energy * 0.2);
+      ctx.beginPath(); ctx.arc(ox, oy, arcR, t * 2.2, t * 2.2 + Math.PI * 0.65); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ox, oy, arcR * 1.1, -t * 1.7, -t * 1.7 + Math.PI * 0.5); ctx.stroke();
     }
+
+    ctx.strokeStyle = hexA(color, 0.15 + energy * 0.1);
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.beginPath();
+    ctx.ellipse(ox, oy + baseR * 0.95, baseR * 0.55, baseR * 0.08, 0, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   function drawRing(cx, cy, r, color, alpha, rotation, segments, coverage) {
@@ -156,26 +180,19 @@
     for (let i = 0; i < segments; i++) {
       const start = i * gap + rotation;
       const end = start + gap * coverage;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, start, end);
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, r, start, end); ctx.stroke();
     }
   }
 
   function drawTicks(cx, cy, r, color, rotation) {
     ctx.strokeStyle = hexA(color, 0.25);
     ctx.lineWidth = 1 * dpr;
-    const count = 60;
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + rotation;
+    for (let i = 0; i < 60; i++) {
+      const angle = (i / 60) * Math.PI * 2 + rotation;
       const len = i % 5 === 0 ? 10 * dpr : 4 * dpr;
-      const x1 = cx + Math.cos(angle) * r;
-      const y1 = cy + Math.sin(angle) * r;
-      const x2 = cx + Math.cos(angle) * (r - len);
-      const y2 = cy + Math.sin(angle) * (r - len);
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
+      ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+      ctx.lineTo(cx + Math.cos(angle) * (r - len), cy + Math.sin(angle) * (r - len));
       ctx.stroke();
     }
   }
@@ -185,23 +202,19 @@
     const r = parseInt(c.substring(0, 2), 16);
     const g = parseInt(c.substring(2, 4), 16);
     const b = parseInt(c.substring(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
   requestAnimationFrame(drawFrame);
 
-  // ---------------------------------------------------------------- clock
   function tickClock() {
     const now = new Date();
-    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const date = now.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'short' });
-    document.getElementById('clock-time').textContent = time;
-    document.getElementById('clock-date').textContent = date;
+    document.getElementById('clock-time').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('clock-date').textContent = now.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'short' });
   }
   tickClock();
   setInterval(tickClock, 1000);
 
-  // ---------------------------------------------------------------- telemetry
   async function refreshTelemetry() {
     try {
       const s = await window.jarvis.system.getStatus();
@@ -212,76 +225,55 @@
     } catch (_) {}
   }
   function setBar(key, percent) {
-    const bar = document.getElementById(`bar-${key}`);
-    const val = document.getElementById(`val-${key}`);
-    if (percent === null || percent === undefined) {
-      val.textContent = 'N/A';
-      bar.style.width = '0%';
-      return;
-    }
-    bar.style.width = `${Math.min(100, percent)}%`;
-    val.textContent = `${Math.round(percent)}%`;
+    const bar = document.getElementById('bar-' + key);
+    const val = document.getElementById('val-' + key);
+    if (percent == null) { val.textContent = 'N/A'; bar.style.width = '0%'; return; }
+    bar.style.width = Math.min(100, percent) + '%';
+    val.textContent = Math.round(percent) + '%';
   }
   refreshTelemetry();
   setInterval(refreshTelemetry, 15000);
 
-  // ---------------------------------------------------------------- activity feed
-  function pushActivity(text, level = 'info') {
+  function pushActivity(text, level) {
     const feed = document.getElementById('activity-feed');
     const item = document.createElement('div');
-    item.className = `item ${level}`;
+    item.className = 'item ' + (level || 'info');
     item.textContent = text;
     feed.prepend(item);
     while (feed.children.length > 6) feed.removeChild(feed.lastChild);
   }
 
-  // ---------------------------------------------------------------- conversation
   function pushMessage(role, text) {
     const convo = document.getElementById('conversation');
     const div = document.createElement('div');
-    div.className = `msg ${role}`;
+    div.className = 'msg ' + role;
     div.textContent = text;
     convo.appendChild(div);
     convo.scrollTop = convo.scrollHeight;
   }
 
-  // ---------------------------------------------------------------- confirmation modal
-  function showConfirmation({ id, summary }) {
+  function showConfirmation(payload) {
     const overlay = document.getElementById('confirm-overlay');
-    document.getElementById('confirm-summary').textContent = summary;
+    document.getElementById('confirm-summary').textContent = payload.summary;
     overlay.classList.remove('hidden');
     setState('waiting');
-
     const authorizeBtn = document.getElementById('confirm-authorize');
     const cancelBtn = document.getElementById('confirm-cancel');
-    const cleanup = () => {
-      overlay.classList.add('hidden');
-      authorizeBtn.onclick = null;
-      cancelBtn.onclick = null;
-    };
-    authorizeBtn.onclick = () => { window.jarvis.confirmation.respond(id, true); cleanup(); };
-    cancelBtn.onclick = () => { window.jarvis.confirmation.respond(id, false); cleanup(); };
+    const cleanup = () => { overlay.classList.add('hidden'); authorizeBtn.onclick = null; cancelBtn.onclick = null; };
+    authorizeBtn.onclick = () => { window.jarvis.confirmation.respond(payload.id, true); cleanup(); };
+    cancelBtn.onclick = () => { window.jarvis.confirmation.respond(payload.id, false); cleanup(); };
   }
 
-  // ---------------------------------------------------------------- chat pipeline
   let processing = false;
-
   async function handleUserUtterance(text) {
     if (!text || processing) return;
     processing = true;
     pushMessage('user', text);
     setState('thinking');
-
     const res = await window.jarvis.chat.sendMessage(text);
     const reply = res.ok ? res.reply : (res.error || "I'm afraid something went wrong.");
     pushMessage('jarvis', reply);
-
-    const voiceEnabled = JarvisSettings.config?.voiceEnabled !== false;
-    if (voiceEnabled) {
-      await speakReply(reply);
-    } else {
-      setState('idle');
-    }
+    await speakReply(reply);
     processing = false;
   }
 
@@ -293,11 +285,8 @@
     if (listeningMode === 'continuous') JarvisVoice.startContinuousListening();
   }
 
-  // ---------------------------------------------------------------- text input row
   document.getElementById('btn-send').addEventListener('click', sendTextInput);
-  document.getElementById('text-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendTextInput();
-  });
+  document.getElementById('text-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTextInput(); });
   function sendTextInput() {
     const input = document.getElementById('text-input');
     const text = input.value.trim();
@@ -306,7 +295,6 @@
     handleUserUtterance(text);
   }
 
-  // ---------------------------------------------------------------- mic button (push-to-talk)
   const micBtn = document.getElementById('btn-mic');
   let pttHeld = false;
   micBtn.addEventListener('mousedown', async () => {
@@ -323,14 +311,12 @@
     if (listeningMode === 'continuous') JarvisVoice.startContinuousListening();
   });
 
-  // ---------------------------------------------------------------- quick launch
   document.getElementById('quicklaunch').addEventListener('click', (e) => {
     const btn = e.target.closest('.ql-btn');
     if (!btn) return;
-    handleUserUtterance(`Open ${btn.dataset.app}`);
+    handleUserUtterance('Open ' + btn.dataset.app);
   });
 
-  // ---------------------------------------------------------------- top bar controls
   document.getElementById('btn-settings').addEventListener('click', () => JarvisSettings.openDrawer());
   document.getElementById('btn-minimize').addEventListener('click', () => window.jarvis.win.minimize());
   document.getElementById('btn-close').addEventListener('click', () => window.jarvis.win.close());
@@ -339,60 +325,39 @@
     document.getElementById('btn-pin').style.color = pinned ? 'var(--cyan)' : '';
   });
 
-  // ---------------------------------------------------------------- JarvisVoice event wiring
   JarvisVoice.on('micLevel', (level) => { micLevel = level; });
   JarvisVoice.on('ttsLevel', (level) => { ttsLevel = level; });
-  JarvisVoice.on('wake', () => {
-    setState('listening');
-    pushActivity('VOICE DETECTED — WAKE WORD');
-  });
+  JarvisVoice.on('wake', () => { setState('listening'); pushActivity('VOICE DETECTED — WAKE WORD'); });
   JarvisVoice.on('interim', () => { if (appState !== 'thinking' && appState !== 'speaking') setState('hearing'); });
-  JarvisVoice.on('transcript', (text) => {
-    pushActivity(`HEARD: "${text}"`);
-    handleUserUtterance(text);
-  });
-  JarvisVoice.on('micError', ({ message }) => {
-    pushActivity(message, 'error');
-    setState('error');
-    setTimeout(() => setState('idle'), 2500);
-  });
+  JarvisVoice.on('transcript', (text) => { pushActivity('HEARD: "' + text + '"'); handleUserUtterance(text); });
+  JarvisVoice.on('micError', ({ message }) => { pushActivity(message, 'error'); setState('error'); setTimeout(() => setState('idle'), 2500); });
   JarvisVoice.on('fallbackPushToTalk', ({ message }) => {
     pushActivity(message, 'warn');
-    micBtn.classList.remove('muted');
-    document.getElementById('hud-tagline').textContent = 'Push-to-talk mode — hold the mic button to speak.';
+    document.getElementById('hud-tagline').textContent = 'Push-to-talk — hold the mic button.';
   });
   JarvisVoice.on('transcribing', (active) => { if (active) setState('thinking'); });
 
-  // ---------------------------------------------------------------- bus events from main
   window.jarvis.events.on('state:change', ({ state }) => setState(state));
   window.jarvis.events.on('activity', ({ text, level }) => pushActivity(text, level));
   window.jarvis.events.on('confirmation:request', showConfirmation);
   window.jarvis.events.on('error', ({ message }) => pushActivity(message, 'error'));
   window.jarvis.events.on('assistant:final', (payload) => {
-    if (payload && payload.proactive) {
-      pushMessage('jarvis', payload.text);
-      speakReply(payload.text);
-    }
+    if (payload && payload.proactive) { pushMessage('jarvis', payload.text); speakReply(payload.text); }
   });
 
-  // ---------------------------------------------------------------- screen bootstrap
   async function bootstrap() {
     const config = await window.jarvis.config.getAll();
-    listeningMode = config.listeningMode;
-    animIntensity = config.animationIntensity;
-    document.getElementById('provider-label').textContent = config.aiProvider;
-    document.getElementById('wakeword-label').textContent = config.wakeWordEnabled ? config.wakeWord : 'disabled';
+    listeningMode = config.listeningMode || 'continuous';
+    animIntensity = config.animationIntensity || 'high';
+    document.getElementById('provider-label').textContent = config.aiProvider || 'groq';
+    document.getElementById('wakeword-label').textContent = config.wakeWordEnabled ? config.wakeWord : 'open mic';
 
     JarvisSettings.wireDrawer((updated) => {
       listeningMode = updated.listeningMode;
       animIntensity = updated.animationIntensity;
       document.getElementById('provider-label').textContent = updated.aiProvider;
-      document.getElementById('wakeword-label').textContent = updated.wakeWordEnabled ? updated.wakeWord : 'disabled';
-      JarvisVoice.configure({
-        wakeWordEnabled: updated.wakeWordEnabled,
-        wakeWord: updated.wakeWord,
-        listeningMode: updated.listeningMode,
-      });
+      document.getElementById('wakeword-label').textContent = updated.wakeWordEnabled ? updated.wakeWord : 'open mic';
+      JarvisVoice.configure({ wakeWordEnabled: updated.wakeWordEnabled, wakeWord: updated.wakeWord, listeningMode: updated.listeningMode });
       if (updated.listeningMode === 'continuous') JarvisVoice.startContinuousListening();
       else JarvisVoice.stopContinuousListening();
     });
@@ -412,24 +377,15 @@
 
   async function startHud() {
     const config = await window.jarvis.config.getAll();
-    JarvisVoice.configure({
-      wakeWordEnabled: config.wakeWordEnabled,
-      wakeWord: config.wakeWord,
-      listeningMode: config.listeningMode,
-    });
+    listeningMode = config.listeningMode || 'continuous';
+    const useWake = !!config.wakeWordEnabled;
+    JarvisVoice.configure({ wakeWordEnabled: useWake, wakeWord: config.wakeWord || 'jarvis', listeningMode: listeningMode });
     await JarvisVoice.initMicLevelMeter();
     setState('idle');
     pushMessage('system', 'Good evening, sir. All systems are online.');
-
-    if (config.listeningMode !== 'continuous') {
-      pushActivity('Push-to-talk mode — hold the mic button to speak.');
-    }
-
-    if (config.voiceEnabled) {
-      await speakReply('Good evening, sir. All systems are online.');
-    } else if (config.listeningMode === 'continuous') {
-      JarvisVoice.startContinuousListening();
-    }
+    pushActivity(useWake ? 'Say "jarvis" then your command' : 'Listening — just speak anytime');
+    await speakReply('Good evening, sir. All systems are online. I am listening.');
+    if (listeningMode === 'continuous') JarvisVoice.startContinuousListening();
   }
 
   bootstrap();
