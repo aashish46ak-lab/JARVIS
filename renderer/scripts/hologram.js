@@ -4,6 +4,7 @@ const JarvisHologram = (function () {
   let scene, camera, renderer, group, animId;
   let autoOrbit = true;
   let container, canvasEl, panel;
+  let scanLine = 0;
 
   function ensureDOM() {
     panel = document.getElementById('hologram-panel');
@@ -11,28 +12,23 @@ const JarvisHologram = (function () {
     panel = document.createElement('div');
     panel.id = 'hologram-panel';
     panel.className = 'hologram-panel hidden';
-    panel.innerHTML = `
-      <div class="holo-header">
-        <span class="holo-title">HOLOGRAPHIC PROJECTION</span>
-        <button id="holo-close" title="Close">✕</button>
-      </div>
-      <div id="holo-canvas-wrap" class="holo-canvas-wrap"></div>
-      <div class="holo-meta">
-        <div id="holo-label" class="holo-label">MODEL</div>
-        <div id="holo-note" class="holo-note"></div>
-      </div>
-      <div class="holo-controls">
-        <button data-view="front">FRONT</button>
-        <button data-view="side">SIDE</button>
-        <button data-view="top">TOP</button>
-        <button data-view="isometric">ISO</button>
-        <button data-view="orbit">ORBIT</button>
-      </div>
-    `;
+    panel.innerHTML =
+      '<div class="holo-header">' +
+      '<span class="holo-title">HOLOGRAPHIC PROJECTION</span>' +
+      '<button id="holo-close" title="Close">✕</button></div>' +
+      '<div id="holo-canvas-wrap" class="holo-canvas-wrap"></div>' +
+      '<div class="holo-meta"><div id="holo-label" class="holo-label">MODEL</div>' +
+      '<div id="holo-note" class="holo-note"></div></div>' +
+      '<div class="holo-controls">' +
+      '<button data-view="front">FRONT</button>' +
+      '<button data-view="side">SIDE</button>' +
+      '<button data-view="top">TOP</button>' +
+      '<button data-view="isometric">ISO</button>' +
+      '<button data-view="orbit">ORBIT</button></div>';
     document.body.appendChild(panel);
     document.getElementById('holo-close').onclick = hide;
-    panel.querySelectorAll('[data-view]').forEach((btn) => {
-      btn.onclick = () => setView(btn.dataset.view);
+    panel.querySelectorAll('[data-view]').forEach(function (btn) {
+      btn.onclick = function () { setView(btn.dataset.view); };
     });
   }
 
@@ -40,197 +36,186 @@ const JarvisHologram = (function () {
     if (renderer) return;
     ensureDOM();
     container = document.getElementById('holo-canvas-wrap');
-    const w = container.clientWidth || 420;
-    const h = container.clientHeight || 320;
-
+    var w = container.clientWidth || 420;
+    var h = container.clientHeight || 320;
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
-    camera.position.set(0, 1.2, 4);
-
+    camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+    camera.position.set(0, 1.4, 4.2);
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(w, h);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     canvasEl = renderer.domElement;
-
-    scene.add(new THREE.AmbientLight(0x4fd8ff, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff, 0.9);
-    key.position.set(3, 5, 4);
-    scene.add(key);
-    const fill = new THREE.DirectionalLight(0x4fd8ff, 0.35);
-    fill.position.set(-3, 1, -2);
-    scene.add(fill);
-
-    const ringGeo = new THREE.RingGeometry(1.6, 1.65, 64);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x4fd8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
+    scene.add(new THREE.AmbientLight(0x4fd8ff, 0.9));
+    var ringGeo = new THREE.RingGeometry(1.5, 1.52, 96);
+    var ringMat = new THREE.MeshBasicMaterial({ color: 0x4fd8ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+    var ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -1.1;
+    ring.position.y = -1.15;
     scene.add(ring);
-
-    let dragging = false, lx = 0, ly = 0;
-    canvasEl.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; autoOrbit = false; });
-    window.addEventListener('pointerup', () => { dragging = false; });
-    window.addEventListener('pointermove', (e) => {
+    var grid = new THREE.GridHelper(4, 20, 0x1a6a8a, 0x0a3040);
+    grid.position.y = -1.16;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.35;
+    scene.add(grid);
+    var dragging = false, lx = 0, ly = 0;
+    canvasEl.addEventListener('pointerdown', function (e) { dragging = true; lx = e.clientX; ly = e.clientY; autoOrbit = false; });
+    window.addEventListener('pointerup', function () { dragging = false; });
+    window.addEventListener('pointermove', function (e) {
       if (!dragging || !group) return;
-      const dx = e.clientX - lx;
-      const dy = e.clientY - ly;
+      group.rotation.y += (e.clientX - lx) * 0.01;
+      group.rotation.x += (e.clientY - ly) * 0.01;
       lx = e.clientX; ly = e.clientY;
-      group.rotation.y += dx * 0.01;
-      group.rotation.x += dy * 0.01;
     });
-
     function animate() {
       animId = requestAnimationFrame(animate);
-      if (group && autoOrbit) group.rotation.y += 0.008;
+      if (group && autoOrbit) group.rotation.y += 0.006;
+      scanLine += 0.02;
+      if (group) {
+        group.traverse(function (obj) {
+          if (obj.material && obj.material.opacity !== undefined && obj.userData.baseOpacity) {
+            obj.material.opacity = obj.userData.baseOpacity * (0.85 + 0.15 * Math.sin(scanLine * 3 + (obj.id || 0)));
+          }
+        });
+      }
       if (renderer && scene && camera) renderer.render(scene, camera);
     }
     animate();
-
-    window.addEventListener('resize', () => {
+    window.addEventListener('resize', function () {
       if (!container || !renderer) return;
-      const nw = container.clientWidth || 420;
-      const nh = container.clientHeight || 320;
-      camera.aspect = nw / nh;
-      camera.updateProjectionMatrix();
-      renderer.setSize(nw, nh);
+      var nw = container.clientWidth || 420, nh = container.clientHeight || 320;
+      camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh);
     });
   }
 
-  function mat(color) {
-    const c = new THREE.Color(color || '#4fd8ff');
-    return new THREE.MeshStandardMaterial({
-      color: c, emissive: c, emissiveIntensity: 0.25,
-      metalness: 0.55, roughness: 0.35, transparent: true, opacity: 0.92,
-    });
+  function cyanMat(opacity) {
+    var m = new THREE.MeshBasicMaterial({ color: 0x4fd8ff, wireframe: true, transparent: true, opacity: opacity == null ? 0.55 : opacity });
+    m.userData = { baseOpacity: m.opacity };
+    return m;
   }
 
-  function wire(color) {
-    return new THREE.MeshBasicMaterial({ color: color || 0x4fd8ff, wireframe: true, transparent: true, opacity: 0.35 });
-  }
-
-  function buildObject(type, color) {
-    const g = new THREE.Group();
-    const m = mat(color);
-    const w = wire(color);
-    const t = (type || 'cube').toLowerCase();
-
-    function addSolid(geo) {
-      g.add(new THREE.Mesh(geo, m));
-      const outline = new THREE.Mesh(geo, w);
-      outline.scale.multiplyScalar(1.02);
-      g.add(outline);
+  function pointsFromGeometry(geo, count, color) {
+    geo = geo.index ? geo.toNonIndexed() : geo;
+    var pos = geo.attributes.position;
+    var n = pos.count;
+    var take = Math.min(count || 1200, n);
+    var arr = new Float32Array(take * 3);
+    var step = Math.max(1, Math.floor(n / take));
+    var j = 0;
+    for (var i = 0; i < n && j < take; i += step) {
+      arr[j * 3] = pos.getX(i); arr[j * 3 + 1] = pos.getY(i); arr[j * 3 + 2] = pos.getZ(i); j++;
     }
+    var bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.BufferAttribute(arr.slice(0, j * 3), 3));
+    var mat = new THREE.PointsMaterial({ color: color || 0x7be8ff, size: 0.035, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true });
+    mat.userData = { baseOpacity: 0.9 };
+    return new THREE.Points(bg, mat);
+  }
 
+  function wireAndDots(geo, g) {
+    g.add(new THREE.Mesh(geo, cyanMat(0.35)));
+    try { g.add(pointsFromGeometry(geo.clone(), 900, 0xa8f0ff)); } catch (e) {}
+  }
+
+  function buildObject(type) {
+    var g = new THREE.Group();
+    var t = (type || 'cube').toLowerCase();
     if (t === 'sphere' || t === 'planet') {
-      addSolid(new THREE.SphereGeometry(1, 32, 32));
-      if (t === 'planet') {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.06, 8, 64), mat(color));
-        ring.rotation.x = Math.PI / 2.5;
-        g.add(ring);
-      }
+      wireAndDots(new THREE.SphereGeometry(1, 32, 24), g);
+      if (t === 'planet') g.add(new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.04, 8, 64), cyanMat(0.5)));
     } else if (t === 'pyramid') {
-      addSolid(new THREE.ConeGeometry(1, 1.6, 4));
+      wireAndDots(new THREE.ConeGeometry(1, 1.6, 4, 1), g);
     } else if (t === 'torus' || t === 'molecule') {
-      addSolid(new THREE.TorusGeometry(0.9, 0.35, 16, 48));
+      wireAndDots(new THREE.TorusGeometry(0.9, 0.32, 16, 48), g);
       if (t === 'molecule') {
-        for (let i = 0; i < 3; i++) {
-          const s = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), mat(color));
-          const a = (i / 3) * Math.PI * 2;
-          s.position.set(Math.cos(a) * 1.1, Math.sin(a) * 0.3, Math.sin(a) * 1.1);
+        for (var i = 0; i < 4; i++) {
+          var s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), cyanMat(0.5));
+          var a = (i / 4) * Math.PI * 2;
+          s.position.set(Math.cos(a) * 1.15, Math.sin(a * 2) * 0.25, Math.sin(a) * 1.15);
           g.add(s);
         }
       }
     } else if (t === 'car') {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.45, 1), m);
-      body.position.y = 0.1;
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 0.9), m);
-      cabin.position.set(-0.15, 0.45, 0);
-      g.add(body, cabin);
-      for (const [x, z] of [[-0.7, 0.55], [-0.7, -0.55], [0.7, 0.55], [0.7, -0.55]]) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.15, 16), mat('#222'));
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(x, -0.15, z);
+      wireAndDots(new THREE.BoxGeometry(2, 0.4, 1), g);
+      var cab = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.35, 0.85), cyanMat(0.4));
+      cab.position.set(-0.15, 0.38, 0); g.add(cab);
+      for (var w = 0; w < 4; w++) {
+        var wheel = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), cyanMat(0.55));
+        wheel.rotation.y = Math.PI / 2;
+        wheel.position.set(w < 2 ? -0.65 : 0.65, -0.2, w % 2 ? 0.55 : -0.55);
         g.add(wheel);
       }
     } else if (t === 'robot') {
-      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.5), m));
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), m);
-      head.position.y = 0.85;
-      g.add(head);
-      for (const [x, y] of [[-0.22, -0.85], [0.22, -0.85]]) {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.7, 0.3), m);
-        leg.position.set(x, y, 0);
-        g.add(leg);
-      }
-      for (const x of [-0.55, 0.55]) {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), m);
-        arm.position.set(x, 0.1, 0);
-        g.add(arm);
-      }
+      wireAndDots(new THREE.BoxGeometry(0.75, 1.0, 0.45), g);
+      var head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), cyanMat(0.45));
+      head.position.y = 0.85; g.add(head);
+      [[-0.22, -0.9], [0.22, -0.9]].forEach(function (p) {
+        var leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.28), cyanMat(0.4));
+        leg.position.set(p[0], p[1], 0); g.add(leg);
+      });
+      [[-0.55, 0.1], [0.55, 0.1]].forEach(function (p) {
+        var arm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.18), cyanMat(0.4));
+        arm.position.set(p[0], p[1], 0); g.add(arm);
+      });
     } else if (t === 'building') {
-      for (let i = 0; i < 5; i++) {
-        const h = 0.6 + (i * 0.25);
-        const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, h, 0.5), m);
-        b.position.set((i - 2) * 0.55, h / 2 - 1, (i % 2) * 0.3);
-        g.add(b);
+      for (var i = 0; i < 5; i++) {
+        var hh = 0.7 + i * 0.28;
+        var b = new THREE.Mesh(new THREE.BoxGeometry(0.45, hh, 0.45), cyanMat(0.4));
+        b.position.set((i - 2) * 0.52, hh / 2 - 1, (i % 2) * 0.25); g.add(b);
       }
     } else if (t === 'aircraft' || t === 'plane') {
-      const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 2.2, 12), m);
-      fuselage.rotation.z = Math.PI / 2;
-      g.add(fuselage, new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.5), m));
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.3), m);
-      tail.position.set(-0.9, 0.2, 0);
-      g.add(tail);
+      var fm = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 2.2, 10), cyanMat(0.45));
+      fm.rotation.z = Math.PI / 2; g.add(fm);
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.55), cyanMat(0.45)));
+      var tail = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 0.28), cyanMat(0.45));
+      tail.position.set(-0.95, 0.22, 0); g.add(tail);
     } else if (t === 'satellite') {
-      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.4), m));
-      const panel1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.5), m);
-      const panel2 = panel1.clone();
-      panel1.position.x = 0.9; panel2.position.x = -0.9;
-      g.add(panel1, panel2);
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.35, 0.35), cyanMat(0.5)));
+      var p1 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.45), cyanMat(0.4));
+      var p2 = p1.clone(); p1.position.x = 0.85; p2.position.x = -0.85; g.add(p1, p2);
     } else {
-      addSolid(new THREE.BoxGeometry(1.4, 1.4, 1.4));
+      wireAndDots(new THREE.BoxGeometry(1.3, 1.3, 1.3), g);
     }
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 2.6), cyanMat(0.12)));
     return g;
   }
 
-  function show({ object, label, color, note }) {
+  function show(opts) {
+    opts = opts || {};
     ensureDOM();
     if (typeof THREE === 'undefined') {
       panel.classList.remove('hidden');
-      document.getElementById('holo-label').textContent = label || object || 'MODEL';
+      document.getElementById('holo-label').textContent = (opts.label || opts.object || 'MODEL').toUpperCase();
       document.getElementById('holo-note').textContent = '3D engine loading…';
       return;
     }
     initThree();
     if (group) scene.remove(group);
-    group = buildObject(object, color);
+    group = buildObject(opts.object);
     scene.add(group);
     autoOrbit = true;
-    camera.position.set(0, 1.2, 4);
+    camera.position.set(0, 1.4, 4.2);
     camera.lookAt(0, 0, 0);
-    document.getElementById('holo-label').textContent = (label || object || 'MODEL').toUpperCase();
-    document.getElementById('holo-note').textContent = note || 'Drag to rotate · Use view buttons';
+    document.getElementById('holo-label').textContent = (opts.label || opts.object || 'MODEL').toUpperCase();
+    document.getElementById('holo-note').textContent = opts.note || 'Wireframe projection · Drag to rotate';
     panel.classList.remove('hidden');
   }
 
-  function hide() {
-    if (panel) panel.classList.add('hidden');
-  }
+  function hide() { if (panel) panel.classList.add('hidden'); }
 
   function setView(view) {
     if (!camera) return;
     autoOrbit = view === 'orbit';
-    const v = (view || 'orbit').toLowerCase();
-    if (v === 'front') camera.position.set(0, 0.5, 4);
-    else if (v === 'side') camera.position.set(4, 0.5, 0);
+    var v = (view || 'orbit').toLowerCase();
+    if (v === 'front') camera.position.set(0, 0.6, 4.2);
+    else if (v === 'side') camera.position.set(4.2, 0.6, 0);
     else if (v === 'top') camera.position.set(0, 5, 0.01);
-    else if (v === 'isometric') camera.position.set(3, 2.5, 3);
-    else camera.position.set(0, 1.2, 4);
+    else if (v === 'isometric') camera.position.set(3.2, 2.6, 3.2);
+    else camera.position.set(0, 1.4, 4.2);
     camera.lookAt(0, 0, 0);
   }
 
-  return { show, hide, setView };
+  return { show: show, hide: hide, setView: setView };
 })();
