@@ -2,8 +2,9 @@
 
 require('dotenv').config();
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage, session } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const eventBus = require('./src/core/EventBus');
 const { Logger } = require('./src/core/Logger');
@@ -49,10 +50,7 @@ function createTray() {
     {
       label: 'Open JARVIS',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
+        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
       },
     },
     {
@@ -67,20 +65,14 @@ function createTray() {
     { type: 'separator' },
     {
       label: 'Quit',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
+      click: () => { app.isQuitting = true; app.quit(); },
     },
   ]);
   tray.setContextMenu(contextMenu);
   tray.on('click', () => {
     if (!mainWindow) return;
     if (mainWindow.isVisible()) mainWindow.hide();
-    else {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    else { mainWindow.show(); mainWindow.focus(); }
   });
 }
 
@@ -114,7 +106,6 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Close → tray (JARVIS stays running in background)
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -231,6 +222,54 @@ ipcMain.handle('window:toggleAlwaysOnTop', async () => {
 });
 ipcMain.handle('shell:openExternal', async (_evt, url) => shell.openExternal(url));
 
+const enrollDir = path.join(app.getPath('userData'), 'enrollment');
+
+ipcMain.handle('enroll:saveFace', async (_evt, { dataUrl }) => {
+  try {
+    await fs.promises.mkdir(enrollDir, { recursive: true });
+    const b64 = String(dataUrl || '').split(',')[1];
+    if (!b64) return { ok: false, error: 'No image data' };
+    const file = path.join(enrollDir, 'face.png');
+    await fs.promises.writeFile(file, Buffer.from(b64, 'base64'));
+    config.set('enrollmentFace', true);
+    config.set('enrollmentFacePath', file);
+    return { ok: true, path: file };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('enroll:saveVoice', async (_evt, { base64, mimeType }) => {
+  try {
+    await fs.promises.mkdir(enrollDir, { recursive: true });
+    const file = path.join(enrollDir, 'voice.webm');
+    await fs.promises.writeFile(file, Buffer.from(base64, 'base64'));
+    config.set('enrollmentVoice', true);
+    config.set('enrollmentVoicePath', file);
+    return { ok: true, path: file };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('enroll:status', async () => ({
+  face: !!config.get('enrollmentFace'),
+  voice: !!config.get('enrollmentVoice'),
+  facePath: config.get('enrollmentFacePath') || null,
+  complete: !!(config.get('enrollmentFace') && config.get('enrollmentVoice')),
+}));
+
+ipcMain.handle('enroll:getFaceDataUrl', async () => {
+  try {
+    const file = config.get('enrollmentFacePath');
+    if (!file) return { ok: false };
+    const buf = await fs.promises.readFile(file);
+    return { ok: true, dataUrl: 'data:image/png;base64,' + buf.toString('base64') };
+  } catch (_) {
+    return { ok: false };
+  }
+});
+
 const suggestionState = { lowDiskWarned: false, lowBatteryWarned: false, highCpuStreak: 0 };
 
 async function checkProactiveSuggestions() {
@@ -269,25 +308,39 @@ async function checkProactiveSuggestions() {
 let proactiveTimer = null;
 
 app.whenReady().then(() => {
+  try {
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      if (['media', 'microphone', 'camera', 'mediaKeySystem'].includes(permission)) {
+        callback(true);
+        return;
+      }
+      callback(false);
+    });
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+      return ['media', 'microphone', 'camera'].includes(permission);
+    });
+  } catch (err) {
+    console.warn('Permission handler setup failed', err);
+  }
+
   createWindow();
-  createTray();
+  try { createTray(); } catch (_) {}
   if (config.get('startWithWindows')) {
     app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
   }
   proactiveTimer = setInterval(checkProactiveSuggestions, 30 * 1000);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-// Keep running in tray on Windows/Linux when window closed
-app.on('window-all-closed', (e) => {
-  if (!app.isQuitting) {
-    // stay alive for tray
-    return;
-  }
+app.on('window-all-closed', () => {
   if (proactiveTimer) clearInterval(proactiveTimer);
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    if (!app.isQuitting) return;
+    app.quit();
+  }
 });
 
 process.on('uncaughtException', (err) => {
