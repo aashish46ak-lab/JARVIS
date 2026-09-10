@@ -29,6 +29,10 @@ const JarvisSettings = (function () {
       '<button id="s-reenroll">Re-enroll face & voice</button>' +
       '<div class="s-section">DISPLAY</div>' +
       '<label>Animation</label><select id="s-anim"><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select>' +
+      '<div class="s-section">UPDATES</div>' +
+      '<p class="s-hint" id="s-update-status">Checks GitHub for new builds. Never updates without your OK.</p>' +
+      '<button id="s-check-update">Check for updates</button>' +
+      '<button id="s-apply-update" style="display:none">Install update & restart</button>' +
       '<button id="s-save" class="s-primary">Save</button><button id="s-test-ai">Test AI</button><button id="s-test-voice">Test voice</button>';
     document.getElementById('settings-drawer').classList.remove('hidden');
     document.getElementById('s-provider').value = config.aiProvider || 'groq';
@@ -55,6 +59,34 @@ const JarvisSettings = (function () {
       var updated = await window.jarvis.config.update(partial);
       if (onUpdate) onUpdate(updated);
       alert('Saved.');
+    };
+    document.getElementById('s-check-update').onclick = async function () {
+      var st = document.getElementById('s-update-status');
+      st.textContent = 'Checking GitHub…';
+      try {
+        var res = await window.jarvis.update.check();
+        if (!res.ok) { st.textContent = 'Check failed: ' + (res.error || 'unknown'); return; }
+        if (res.available) {
+          st.textContent = 'Update available: ' + (res.remoteMessage || res.remoteSha.slice(0, 7));
+          document.getElementById('s-apply-update').style.display = '';
+        } else {
+          st.textContent = 'You are up to date (' + (res.localVersion || '') + ').';
+          document.getElementById('s-apply-update').style.display = 'none';
+        }
+      } catch (e) {
+        st.textContent = 'Check failed: ' + (e.message || e);
+      }
+    };
+    document.getElementById('s-apply-update').onclick = async function () {
+      if (!confirm('Install the latest JARVIS update from GitHub and restart? Your API keys are kept.')) return;
+      var st = document.getElementById('s-update-status');
+      st.textContent = 'Installing update… please wait';
+      try {
+        var res = await window.jarvis.update.apply();
+        st.textContent = res.ok ? 'Update installed. Restarting…' : ('Update failed: ' + (res.error || 'unknown'));
+      } catch (e) {
+        st.textContent = 'Update failed: ' + (e.message || e);
+      }
     };
     document.getElementById('s-test-ai').onclick = async function () {
       var res = await window.jarvis.config.testAI();
