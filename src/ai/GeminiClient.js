@@ -5,7 +5,8 @@ const { GoogleGenAI } = require('@google/genai');
 class GeminiClient {
   constructor({ apiKey, model, logger }) {
     this.apiKey = apiKey;
-    this.model = model || 'gemini-2.5-flash';
+    this.model = model || 'gemini-2.0-flash';
+    this.fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
     this.logger = logger;
     this.client = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
@@ -32,45 +33,50 @@ class GeminiClient {
       parameters: t.parameters,
     }));
 
-    const request = {
-      model: this.model,
-      contents,
-    };
+    const modelsToTry = [this.model, ...this.fallbackModels.filter((m) => m !== this.model)];
+    let lastErr = null;
 
-    if (toolDefs.length) {
-      request.config = {
-        tools: [{ functionDeclarations: toolDefs }],
-      };
-    }
-
-    const response = await this.client.models.generateContent(request);
-
-    let text = '';
-    let functionCalls = [];
-
-    if (typeof response.text === 'string') {
-      text = response.text;
-    } else if (response.candidates && response.candidates[0]) {
-      const parts = response.candidates[0].content?.parts || [];
-      for (const part of parts) {
-        if (part.text) text += part.text;
-        if (part.functionCall) {
-          functionCalls.push({
-            name: part.functionCall.name,
-            args: part.functionCall.args || {},
-          });
+    for (const model of modelsToTry) {
+      try {
+        const request = { model, contents };
+        if (toolDefs.length) {
+          request.config = { tools: [{ functionDeclarations: toolDefs }] };
         }
+        const response = await this.client.models.generateContent(request);
+
+        let text = '';
+        let functionCalls = [];
+
+        if (typeof response.text === 'string') {
+          text = response.text;
+        } else if (response.candidates && response.candidates[0]) {
+          const parts = response.candidates[0].content?.parts || [];
+          for (const part of parts) {
+            if (part.text) text += part.text;
+            if (part.functionCall) {
+              functionCalls.push({
+                name: part.functionCall.name,
+                args: part.functionCall.args || {},
+              });
+            }
+          }
+        }
+
+        if (response.functionCalls && Array.isArray(response.functionCalls)) {
+          functionCalls = response.functionCalls.map((fc) => ({
+            name: fc.name,
+            args: fc.args || fc.arguments || {},
+          }));
+        }
+
+        return { text: text.trim(), functionCalls };
+      } catch (err) {
+        lastErr = err;
+        if (this.logger) this.logger.warn('GEMINI', 'Model failed: ' + model, { error: err.message });
       }
     }
 
-    if (response.functionCalls && Array.isArray(response.functionCalls)) {
-      functionCalls = response.functionCalls.map((fc) => ({
-        name: fc.name,
-        args: fc.args || fc.arguments || {},
-      }));
-    }
-
-    return { text: text.trim(), functionCalls };
+    throw lastErr || new Error('All Gemini models failed');
   }
 
   async testConnection() {
