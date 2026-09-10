@@ -15,6 +15,7 @@ const PermissionManager = require('./src/tools/PermissionManager');
 const ConversationManager = require('./src/ai/ConversationManager');
 const TTSService = require('./src/voice/TTSService');
 const STTService = require('./src/voice/STTService');
+const Updater = require('./src/core/Updater');
 const si = require('systeminformation');
 
 let mainWindow = null;
@@ -36,6 +37,7 @@ const ttsService = new TTSService({
   logger,
 });
 const sttService = new STTService({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey'), logger });
+const updater = new Updater({ appRoot: __dirname, config, logger, eventBus });
 
 function createTray() {
   const png = Buffer.from(
@@ -119,6 +121,7 @@ const FORWARDED_EVENTS = [
   'confirmation:request', 'tool:executing', 'tool:result', 'error',
   'assistant:speaking', 'assistant:interrupted',
   'hologram:show', 'hologram:hide', 'hologram:view',
+  'update:available',
 ];
 for (const evt of FORWARDED_EVENTS) {
   eventBus.on(evt, (payload) => {
@@ -191,6 +194,18 @@ ipcMain.handle('config:testAI', async () => {
 });
 
 ipcMain.handle('config:testVoice', async () => ttsService.testVoice());
+
+ipcMain.handle('update:check', async () => updater.check());
+ipcMain.handle('update:apply', async () => {
+  const result = await updater.apply();
+  if (result.ok && result.needsRestart) {
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 1200);
+  }
+  return result;
+});
 
 ipcMain.handle('memory:list', async () => memoryStore.list());
 ipcMain.handle('memory:save', async (_evt, { key, value }) => memoryStore.save(key, value));
@@ -329,6 +344,26 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
   }
   proactiveTimer = setInterval(checkProactiveSuggestions, 30 * 1000);
+
+  // Background update check — never auto-applies; user must approve
+  if (config.get('autoCheckUpdates') !== false) {
+    setTimeout(async () => {
+      try {
+        const status = await updater.check();
+        if (status.ok && status.available) {
+          eventBus.safeEmit('update:available', {
+            remoteMessage: status.remoteMessage,
+            remoteSha: status.remoteSha,
+            remoteDate: status.remoteDate,
+          });
+          eventBus.safeEmit('activity', {
+            text: 'Update available: ' + (status.remoteMessage || String(status.remoteSha).slice(0, 7)),
+            level: 'warn',
+          });
+        }
+      } catch (_) {}
+    }, 8000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
