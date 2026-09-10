@@ -20,8 +20,14 @@ const DEFAULTS = {
   wakeWord: 'jarvis',
   animationIntensity: 'high',
   alwaysOnTop: false,
+  startWithWindows: true,
   startMinimized: false,
   permissionMode: 'dangerous-only',
+  enrollmentFace: false,
+  enrollmentVoice: false,
+  enrollmentFacePath: '',
+  enrollmentVoicePath: '',
+  enrollmentComplete: false,
 };
 
 class ConfigManager {
