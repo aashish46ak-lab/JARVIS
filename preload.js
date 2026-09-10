@@ -24,10 +24,17 @@ contextBridge.exposeInMainWorld('jarvis', {
     respond: (id, approved) => ipcRenderer.invoke('confirmation:respond', { id, approved }),
   },
   voice: {
-    transcribeFallback: (base64, mimeType) => ipcRenderer.invoke('voice:transcribeFallback', { base64, mimeType }),
+    transcribeFallback: (base64, mimeType) =>
+      ipcRenderer.invoke('voice:transcribeFallback', { base64, mimeType }),
   },
   tts: {
     synthesize: (text) => ipcRenderer.invoke('tts:synthesize', text),
+  },
+  enroll: {
+    saveFace: (dataUrl) => ipcRenderer.invoke('enroll:saveFace', { dataUrl }),
+    saveVoice: (base64, mimeType) => ipcRenderer.invoke('enroll:saveVoice', { base64, mimeType }),
+    status: () => ipcRenderer.invoke('enroll:status'),
+    getFaceDataUrl: () => ipcRenderer.invoke('enroll:getFaceDataUrl'),
   },
   memory: {
     list: () => ipcRenderer.invoke('memory:list'),
