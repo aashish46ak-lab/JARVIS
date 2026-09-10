@@ -28,6 +28,9 @@ const DEFAULTS = {
   enrollmentFacePath: '',
   enrollmentVoicePath: '',
   enrollmentComplete: false,
+  updateLastSha: '',
+  updateLastAt: '',
+  autoCheckUpdates: true,
 };
 
 class ConfigManager {
