@@ -1,25 +1,30 @@
 'use strict';
 
-const { GoogleGenAI } = require('@google/genai');
+let GoogleGenAI = null;
+try {
+  GoogleGenAI = require('@google/genai').GoogleGenAI;
+} catch (_) {
+  GoogleGenAI = null;
+}
 
 class STTService {
   constructor({ apiKey, logger }) {
     this.apiKey = apiKey;
     this.logger = logger;
-    this.client = apiKey ? new GoogleGenAI({ apiKey }) : null;
+    this.client = (apiKey && GoogleGenAI) ? new GoogleGenAI({ apiKey }) : null;
     this.models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
   }
 
   updateConfig({ apiKey }) {
     if (apiKey) {
       this.apiKey = apiKey;
-      this.client = new GoogleGenAI({ apiKey });
+      this.client = (apiKey && GoogleGenAI) ? new GoogleGenAI({ apiKey }) : null;
     }
   }
 
   async transcribe(buffer, mimeType = 'audio/webm') {
-    if (!this.client) {
-      throw new Error('Fallback STT needs a Gemini API key. Browser speech recognition is preferred.');
+    if (!GoogleGenAI || !this.client) {
+      throw new Error('Fallback STT needs @google/genai and a Gemini API key. Browser speech recognition is preferred.');
     }
 
     const base64 = buffer.toString('base64');
