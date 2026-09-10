@@ -329,6 +329,21 @@
   });
   safeOn('hologram:hide', function () { if (typeof JarvisHologram !== 'undefined') JarvisHologram.hide(); });
   safeOn('hologram:view', function (p) { if (typeof JarvisHologram !== 'undefined') JarvisHologram.setView(p && p.view); });
+  safeOn('update:available', function (p) {
+    pushActivity('UPDATE AVAILABLE: ' + ((p && p.remoteMessage) || 'new build'), 'warn');
+    var msg = 'A new JARVIS update is available' +
+      (p && p.remoteMessage ? ': ' + p.remoteMessage : '') +
+      '. Install and restart now?';
+    if (window.confirm(msg)) {
+      pushActivity('Installing update…');
+      window.jarvis.update.apply().then(function (res) {
+        if (!res.ok) pushActivity('Update failed: ' + (res.error || ''), 'error');
+        else pushActivity('Update installed — restarting…');
+      }).catch(function (e) {
+        pushActivity('Update failed: ' + (e.message || e), 'error');
+      });
+    }
+  });
 
   async function bootstrap() {
     try {
