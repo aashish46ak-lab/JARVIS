@@ -1,7 +1,7 @@
 {
   "name": "jarvis-desktop",
   "productName": "JARVIS",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "MCU-style voice-first desktop AI assistant (Groq + Fish Audio)",
   "main": "main.js",
   "scripts": {
@@ -9,6 +9,7 @@
     "dev": "electron ."
   },
   "dependencies": {
+    "@google/genai": "^0.14.0",
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0",
     "node-fetch": "^2.7.0",
