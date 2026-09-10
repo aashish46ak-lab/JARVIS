@@ -44,35 +44,12 @@
   var t = 0;
   var STATE_COLORS = {
     idle: '#4fd8ff', listening: '#4fd8ff', hearing: '#7be8ff', thinking: '#4fd8ff',
-    waiting: '#ff9b40', executing: '#7CFFB2', speaking: '#4fd8ff', error: '#ff5470',
+    waiting: '#ff9b40', executing: '#7CFFB2', speaking: '#ff4d4d', error: '#ff5470',
   };
 
   function hexA(hex, alpha) {
     var c = hex.replace('#', '');
     return 'rgba(' + parseInt(c.substring(0, 2), 16) + ',' + parseInt(c.substring(2, 4), 16) + ',' + parseInt(c.substring(4, 6), 16) + ',' + alpha + ')';
-  }
-
-  function drawRing(cx, cy, r, color, alpha, rotation, segments, coverage) {
-    ctx.strokeStyle = hexA(color, alpha);
-    ctx.lineWidth = 1.4 * dpr;
-    var gap = (Math.PI * 2) / segments;
-    for (var i = 0; i < segments; i++) {
-      var start = i * gap + rotation;
-      ctx.beginPath(); ctx.arc(cx, cy, r, start, start + gap * coverage); ctx.stroke();
-    }
-  }
-
-  function drawTicks(cx, cy, r, color, rotation) {
-    ctx.strokeStyle = hexA(color, 0.25);
-    ctx.lineWidth = 1 * dpr;
-    for (var i = 0; i < 60; i++) {
-      var angle = (i / 60) * Math.PI * 2 + rotation;
-      var len = i % 5 === 0 ? 10 * dpr : 4 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
-      ctx.lineTo(cx + Math.cos(angle) * (r - len), cy + Math.sin(angle) * (r - len));
-      ctx.stroke();
-    }
   }
 
   function drawFrame() {
@@ -81,58 +58,85 @@
     var w = canvas.width, h = canvas.height;
     if (w < 10 || h < 10) return;
     var cx = w / 2, cy = h / 2;
-    var R = Math.min(w, h) * 0.48;
+    var R = Math.min(w, h) * 0.46;
     ctx.clearRect(0, 0, w, h);
     var color = STATE_COLORS[appState] || '#4fd8ff';
-    var intensityMul = animIntensity === 'low' ? 0.5 : animIntensity === 'high' ? 1.4 : 1;
-    var energy = 0.2;
-    if (appState === 'hearing' || appState === 'listening') energy = 0.25 + micLevel * 0.8;
-    else if (appState === 'speaking') energy = 0.3 + ttsLevel * 0.85;
+    var intensityMul = animIntensity === 'low' ? 0.5 : animIntensity === 'high' ? 1.35 : 1;
+    var energy = 0.22;
+    if (appState === 'hearing' || appState === 'listening') energy = 0.28 + micLevel * 0.75;
+    else if (appState === 'speaking') energy = 0.35 + ttsLevel * 0.8;
     else if (appState === 'thinking' || appState === 'executing') energy = 0.45 + Math.sin(t * 4) * 0.2;
-    else if (appState === 'idle') energy = 0.22 + Math.sin(t * 0.9) * 0.08;
+    else if (appState === 'idle') energy = 0.2 + Math.sin(t * 0.8) * 0.06;
     energy *= intensityMul;
-    var ox = cx + Math.sin(t * 0.7) * R * 0.008;
-    var oy = cy + Math.sin(t * 1.1) * R * 0.01;
-    var glow = ctx.createRadialGradient(ox, oy, R * 0.15, ox, oy, R * 1.05);
-    glow.addColorStop(0, hexA(color, 0.08 + energy * 0.12));
-    glow.addColorStop(1, hexA(color, 0));
+
+    var glow = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.15);
+    glow.addColorStop(0, hexA(color, 0.06 + energy * 0.1));
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(ox, oy, R * 1.05, 0, Math.PI * 2); ctx.fill();
-    var rings = [
-      { r: 0.98, segs: 48, cov: 0.55, a: 0.35, sp: 0.15 },
-      { r: 0.88, segs: 36, cov: 0.4, a: 0.45, sp: -0.22 },
-      { r: 0.78, segs: 60, cov: 0.7, a: 0.3, sp: 0.35 },
-      { r: 0.68, segs: 24, cov: 0.5, a: 0.5, sp: -0.18 },
-      { r: 0.58, segs: 40, cov: 0.35, a: 0.4, sp: 0.28 },
-    ];
-    var spin = (appState === 'thinking' || appState === 'executing') ? 2.5 : 1;
-    for (var ri = 0; ri < rings.length; ri++) {
-      var ring = rings[ri];
-      drawRing(ox, oy, R * ring.r, color, ring.a * (0.7 + energy * 0.5), t * ring.sp * spin, ring.segs, ring.cov);
-    }
-    drawTicks(ox, oy, R * 0.98, color, t * 0.03);
-    ctx.strokeStyle = hexA(color, 0.85);
-    ctx.lineWidth = 3.5 * dpr;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.strokeStyle = hexA(color, 0.55);
+    ctx.lineWidth = 2.2 * dpr;
+    ctx.setLineDash([6 * dpr, 5 * dpr]);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.98, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.strokeStyle = hexA(color, 0.92);
+    ctx.lineWidth = 5 * dpr;
     ctx.lineCap = 'round';
-    var arcStart = -Math.PI / 2;
-    var arcLen = Math.PI * 2 * Math.min(0.95, 0.15 + energy * 0.7);
-    ctx.beginPath(); ctx.arc(ox, oy, R * 0.48, arcStart + t * 0.4, arcStart + t * 0.4 + arcLen); ctx.stroke();
+    var arcSpin = t * 0.35;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.98, -Math.PI * 0.15 + arcSpin, Math.PI * 0.55 + arcSpin);
+    ctx.stroke();
     ctx.lineCap = 'butt';
-    var disc = ctx.createRadialGradient(ox, oy, 0, ox, oy, R * 0.42);
-    disc.addColorStop(0, hexA(color, 0.25 + energy * 0.2));
-    disc.addColorStop(1, hexA(color, 0));
-    ctx.fillStyle = disc;
-    ctx.beginPath(); ctx.arc(ox, oy, R * 0.42, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = hexA(color, 0.7);
-    ctx.lineWidth = 1.8 * dpr;
-    ctx.beginPath(); ctx.arc(ox, oy, R * 0.36, 0, Math.PI * 2); ctx.stroke();
-    var coreR = R * (0.08 + energy * 0.06);
-    var core = ctx.createRadialGradient(ox, oy, 0, ox, oy, coreR * 2.5);
-    core.addColorStop(0, hexA('#ffffff', 0.95));
-    core.addColorStop(0.3, hexA(color, 0.85));
-    core.addColorStop(1, hexA(color, 0));
-    ctx.fillStyle = core;
-    ctx.beginPath(); ctx.arc(ox, oy, coreR * 2.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = hexA(color, 0.45);
+    ctx.lineWidth = 1.6 * dpr;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.78, 0, Math.PI * 2); ctx.stroke();
+
+    var segs = 36;
+    for (var i = 0; i < segs; i++) {
+      if (i % 3 === 0) continue;
+      var a0 = (i / segs) * Math.PI * 2 + t * 0.12;
+      var a1 = a0 + (Math.PI * 2) / segs * 0.55;
+      ctx.strokeStyle = hexA(color, 0.35 + energy * 0.25);
+      ctx.lineWidth = 1.2 * dpr;
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.62, a0, a1); ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(4, 10, 18, 0.92)';
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = hexA(color, 0.5);
+    ctx.lineWidth = 1.4 * dpr;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2); ctx.stroke();
+
+    var coreColor = (appState === 'speaking') ? '#ff3333' : '#e02020';
+    var coreR = R * (0.09 + energy * 0.04);
+    var coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 3);
+    coreGlow.addColorStop(0, hexA('#ffffff', 0.9));
+    coreGlow.addColorStop(0.25, hexA(coreColor, 0.95));
+    coreGlow.addColorStop(0.55, hexA(coreColor, 0.45));
+    coreGlow.addColorStop(1, hexA(coreColor, 0));
+    ctx.fillStyle = coreGlow;
+    ctx.beginPath(); ctx.arc(cx, cy, coreR * 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = coreColor;
+    ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = hexA(color, 0.7);
+    for (var d = 0; d < 4; d++) {
+      var ang = (d / 4) * Math.PI * 2 - Math.PI / 2;
+      var dx = cx + Math.cos(ang) * R * 0.38;
+      var dy = cy + Math.sin(ang) * R * 0.38;
+      ctx.beginPath();
+      ctx.moveTo(dx, dy - 3 * dpr);
+      ctx.lineTo(dx + 2.5 * dpr, dy);
+      ctx.lineTo(dx, dy + 3 * dpr);
+      ctx.lineTo(dx - 2.5 * dpr, dy);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
   requestAnimationFrame(drawFrame);
 
@@ -386,7 +390,7 @@
         var micStream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
         });
-        micStream.getTracks().forEach(function (t) { t.stop(); });
+        micStream.getTracks().forEach(function (tr) { tr.stop(); });
         pushActivity('Microphone granted');
       } catch (e) {
         pushActivity('Microphone denied — enable in Windows settings', 'error');
@@ -394,7 +398,7 @@
       try {
         pushActivity('Requesting camera…');
         var camStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        camStream.getTracks().forEach(function (t) { t.stop(); });
+        camStream.getTracks().forEach(function (tr) { tr.stop(); });
         pushActivity('Camera granted');
       } catch (e) {
         pushActivity('Camera optional — skipped', 'warn');
