@@ -225,7 +225,6 @@
       if (typeof JarvisVoice !== 'undefined') await JarvisVoice.speak(cleanSpeech(text));
     } catch (err) { console.warn('speak failed', err); }
     setState('idle');
-    // CRITICAL: always resume listening after speech
     if (listeningMode === 'continuous' && typeof JarvisVoice !== 'undefined') {
       setTimeout(function () {
         JarvisVoice.configure({ listeningMode: 'continuous', wakeWordEnabled: false });
@@ -264,11 +263,9 @@
     document.getElementById('btn-pin').style.color = pinned ? 'var(--cyan)' : '';
   });
 
-  // Mic button = hold-to-talk backup
   var micBtn = document.getElementById('btn-mic');
   var pttHeld = false;
   if (micBtn) {
-    micBtn.style.display = '';
     micBtn.addEventListener('mousedown', async function () {
       pttHeld = true;
       if (typeof JarvisVoice !== 'undefined') {
@@ -338,15 +335,15 @@
       var config = await window.jarvis.config.getAll();
       listeningMode = 'continuous';
       animIntensity = config.animationIntensity || 'high';
-      document.getElementById('provider-label').textContent = config.aiProvider || 'groq';
-      document.getElementById('wakeword-label').textContent = 'open mic';
+      document.getElementById('provider-label').textContent = (config.aiProvider || 'groq').toUpperCase();
+      document.getElementById('wakeword-label').textContent = 'OPEN MIC';
 
       if (typeof JarvisSettings !== 'undefined') {
         JarvisSettings.wireDrawer(function (updated) {
           listeningMode = updated.listeningMode || 'continuous';
           animIntensity = updated.animationIntensity;
-          document.getElementById('provider-label').textContent = updated.aiProvider;
-          document.getElementById('wakeword-label').textContent = updated.wakeWordEnabled ? updated.wakeWord : 'open mic';
+          document.getElementById('provider-label').textContent = (updated.aiProvider || 'groq').toUpperCase();
+          document.getElementById('wakeword-label').textContent = updated.wakeWordEnabled ? updated.wakeWord : 'OPEN MIC';
           if (typeof JarvisVoice !== 'undefined') {
             JarvisVoice.configure({
               wakeWordEnabled: !!updated.wakeWordEnabled,
@@ -383,12 +380,53 @@
         JarvisVoice.configure({ wakeWordEnabled: false, wakeWord: 'jarvis', listeningMode: 'continuous' });
       }
       resizeCanvas();
+
+      try {
+        pushActivity('Requesting microphone…');
+        var micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+        micStream.getTracks().forEach(function (t) { t.stop(); });
+        pushActivity('Microphone granted');
+      } catch (e) {
+        pushActivity('Microphone denied — enable in Windows settings', 'error');
+      }
+      try {
+        pushActivity('Requesting camera…');
+        var camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        camStream.getTracks().forEach(function (t) { t.stop(); });
+        pushActivity('Camera granted');
+      } catch (e) {
+        pushActivity('Camera optional — skipped', 'warn');
+      }
+
       if (typeof JarvisVoice !== 'undefined') {
         try { await JarvisVoice.initMicLevelMeter(); } catch (e) { console.warn(e); }
+        JarvisVoice.startContinuousListening();
       }
+
+      try {
+        if (window.jarvis.enroll) {
+          var faceRes = await window.jarvis.enroll.getFaceDataUrl();
+          if (faceRes && faceRes.ok && faceRes.dataUrl) {
+            var chip = document.getElementById('face-chip');
+            var img = document.getElementById('face-chip-img');
+            if (chip && img) { img.src = faceRes.dataUrl; chip.classList.remove('hidden'); }
+          }
+        }
+      } catch (_) {}
+
+      try {
+        if (typeof JarvisHologram !== 'undefined') {
+          JarvisHologram.show({ object: 'jarvis', label: 'J.A.R.V.I.S. CORE', note: 'Primary interface online' });
+        }
+      } catch (_) {}
+
       setState('listening');
-      pushMessage('system', 'Good evening, sir. All systems are online.');
-      pushActivity('Listening — just speak (or hold mic / type)');
+      pushMessage('system', 'All systems are online.');
+      pushActivity('Listening — speak naturally');
+      var live = document.getElementById('live-chip');
+      if (live) live.classList.add('live');
       await speakReply('Good evening, sir. All systems are online. I am listening.');
     } catch (err) {
       console.error('startHud failed', err);
@@ -401,5 +439,6 @@
     }
   }
 
+  window.__jarvisStartHud = startHud;
   bootstrap();
 })();
