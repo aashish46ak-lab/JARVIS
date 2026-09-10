@@ -30,7 +30,16 @@ body::after {
   padding: 0.55rem 1.2rem; background: linear-gradient(180deg, rgba(8,20,40,0.95), transparent);
   border-bottom: 1px solid var(--border); z-index: 20;
 }
-.logo { font-weight: 700; letter-spacing: 0.28em; color: var(--cyan); text-shadow: var(--glow); font-size: 1.05rem; }
+.logo {
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  font-size: 1.05rem;
+  background: linear-gradient(90deg, #9aa8b5 0%, #4fd8ff 55%, #2a9fd4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
 .chip {
   font-size: 0.65rem; padding: 0.15rem 0.55rem; margin-left: 0.45rem;
   border: 1px solid var(--border); border-radius: 2px; color: var(--muted);
@@ -99,7 +108,12 @@ body::after {
 .s-primary { width: 100%; margin-top: 0.8rem !important; background: rgba(79,216,255,0.25) !important; border-color: var(--cyan) !important; font-weight: 600; }
 #setup-screen { align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #0a1a30 0%, #02050a 70%); }
 .setup-card { background: rgba(4,14,28,0.9); border: 1px solid var(--border); border-radius: 4px; padding: 2rem; width: min(500px, 92vw); text-align: center; box-shadow: 0 0 60px rgba(79,216,255,0.15); }
-.setup-card h1 { color: var(--cyan); letter-spacing: 0.25em; margin-bottom: 0.3rem; text-shadow: var(--glow); }
+.setup-card h1 {
+  font-weight: 300; letter-spacing: 0.42em; margin-bottom: 0.3rem; font-size: 1.6rem;
+  background: linear-gradient(90deg, #9aa8b5 0%, #4fd8ff 55%, #2a9fd4 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.setup-logo { width: 96px; height: 96px; margin: 0 auto 1rem; display: block; filter: drop-shadow(0 0 20px rgba(79,216,255,0.45)); }
 .setup-card .tagline { color: var(--muted); margin-bottom: 1.4rem; letter-spacing: 0.1em; }
 .setup-card .primary { margin-top: 1.2rem; padding: 0.65rem 1.6rem; background: var(--cyan); color: #021018; border: none; border-radius: 2px; font-weight: 700; cursor: pointer; }
 .setup-card .primary:disabled { opacity: 0.4; cursor: not-allowed; }
