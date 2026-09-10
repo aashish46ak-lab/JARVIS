@@ -18,17 +18,21 @@ class ConversationManager {
   }
 
   refreshProvider() {
-    const provider = this.config.get('aiProvider') || 'groq';
-    if (provider === 'gemini') {
+    let provider = this.config.get('aiProvider') || 'groq';
+    // Prefer Groq when a Groq key exists (avoids stale Gemini / dead models)
+    if (this.config.get('groqApiKey') && provider !== 'gemini') {
+      provider = 'groq';
+    }
+    if (provider === 'gemini' && this.config.get('geminiApiKey')) {
       this.provider = new GeminiClient({
         apiKey: this.config.get('geminiApiKey'),
-        model: this.config.get('geminiModel'),
+        model: this.config.get('geminiModel') || 'gemini-2.0-flash',
         logger: this.logger,
       });
     } else {
       this.provider = new GroqClient({
         apiKey: this.config.get('groqApiKey'),
-        model: this.config.get('groqModel'),
+        model: this.config.get('groqModel') || 'llama-3.1-8b-instant',
         logger: this.logger,
       });
     }
@@ -54,7 +58,7 @@ class ConversationManager {
         ...this.history,
       ];
 
-      const { text, functionCalls } = await this.provider.chat({ messages, tools });
+      const { text: out, functionCalls } = await this.provider.chat({ messages, tools });
 
       if (functionCalls && functionCalls.length > 0) {
         for (const fc of functionCalls) {
@@ -84,7 +88,7 @@ class ConversationManager {
         continue;
       }
 
-      replyText = text || "I'm afraid I didn't catch that, sir.";
+      replyText = out || "I'm afraid I didn't catch that, sir.";
       break;
     }
 
