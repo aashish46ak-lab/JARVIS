@@ -3,26 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>J.A.R.V.I.S.</title>
+  <title>J.A.R.V.I.S. v2</title>
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
   <div id="setup-screen" class="screen hidden">
     <div class="setup-card">
-      <h1>J.A.R.V.I.S. Setup</h1>
-      <p class="tagline">Voice-first desktop assistant</p>
+      <h1>J.A.R.V.I.S.</h1>
+      <p class="tagline">SYSTEM INITIALIZATION · v2.0</p>
       <div id="setup-steps"></div>
-      <button id="setup-finish" class="primary" disabled>Finish & Launch</button>
+      <button id="setup-finish" class="primary" disabled>CONTINUE</button>
     </div>
   </div>
 
   <div id="hud-screen" class="screen hidden">
+    <div class="version-badge">JARVIS OS v2.0</div>
     <div id="face-chip" class="face-chip hidden"><img id="face-chip-img" alt="enrolled" /></div>
     <header class="top-bar">
       <div class="left">
         <span class="logo">J.A.R.V.I.S.</span>
-        <span id="provider-label" class="chip">groq</span>
-        <span id="wakeword-label" class="chip">open mic</span>
+        <span id="provider-label" class="chip">GROQ</span>
+        <span id="wakeword-label" class="chip">OPEN MIC</span>
+        <span id="live-chip" class="chip live">LIVE</span>
       </div>
       <div class="right">
         <button id="btn-pin" title="Always on top">📌</button>
@@ -35,47 +37,28 @@
     <main class="hud-grid">
       <aside class="panel left-panel">
         <div class="panel-title">SYSTEM TELEMETRY</div>
-        <div class="metric">
-          <span>CPU</span>
-          <div class="bar-track"><div id="bar-cpu" class="bar-fill"></div></div>
-          <span id="val-cpu">—</span>
-        </div>
-        <div class="metric">
-          <span>RAM</span>
-          <div class="bar-track"><div id="bar-ram" class="bar-fill"></div></div>
-          <span id="val-ram">—</span>
-        </div>
-        <div class="metric">
-          <span>DISK</span>
-          <div class="bar-track"><div id="bar-disk" class="bar-fill"></div></div>
-          <span id="val-disk">—</span>
-        </div>
-        <div class="metric">
-          <span>BATT</span>
-          <div class="bar-track"><div id="bar-batt" class="bar-fill"></div></div>
-          <span id="val-batt">—</span>
-        </div>
-        <div class="clock-block">
-          <div id="clock-time">00:00</div>
-          <div id="clock-date">—</div>
-        </div>
+        <div class="metric"><span>CPU</span><div class="bar-track"><div id="bar-cpu" class="bar-fill"></div></div><span id="val-cpu">—</span></div>
+        <div class="metric"><span>RAM</span><div class="bar-track"><div id="bar-ram" class="bar-fill"></div></div><span id="val-ram">—</span></div>
+        <div class="metric"><span>DISK</span><div class="bar-track"><div id="bar-disk" class="bar-fill"></div></div><span id="val-disk">—</span></div>
+        <div class="metric"><span>BATT</span><div class="bar-track"><div id="bar-batt" class="bar-fill"></div></div><span id="val-batt">—</span></div>
+        <div class="clock-block"><div id="clock-time">00:00</div><div id="clock-date">—</div></div>
       </aside>
 
       <section class="center-stage">
         <div class="viz-wrap">
           <canvas id="viz-canvas"></canvas>
           <div class="viz-status-wrap">
-            <div id="viz-status">STANDBY</div>
-            <div id="state-label">IDLE</div>
+            <div id="viz-status">INITIALIZING</div>
+            <div id="state-label">BOOT</div>
           </div>
         </div>
         <p id="hud-tagline" class="tagline">AWAITING COMMAND</p>
       </section>
 
       <aside class="panel right-panel">
-        <div class="panel-title">ACTIVITY</div>
+        <div class="panel-title">ACTIVITY LOG</div>
         <div id="activity-feed" class="feed"></div>
-        <div class="panel-title" style="margin-top:1rem">QUICK LAUNCH</div>
+        <div class="panel-title" style="margin-top:0.8rem">QUICK LAUNCH</div>
         <div id="quicklaunch" class="quicklaunch">
           <button class="ql-btn" data-app="chrome">Chrome</button>
           <button class="ql-btn" data-app="code">VS Code</button>
@@ -106,10 +89,7 @@
     </div>
 
     <div id="settings-drawer" class="drawer hidden">
-      <div class="drawer-header">
-        <h2>SETTINGS</h2>
-        <button id="btn-close-settings">✕</button>
-      </div>
+      <div class="drawer-header"><h2>SETTINGS</h2><button id="btn-close-settings">✕</button></div>
       <div id="settings-body" class="drawer-body"></div>
     </div>
   </div>
