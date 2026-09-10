@@ -1,6 +1,11 @@
 'use strict';
 
-const { GoogleGenAI } = require('@google/genai');
+let GoogleGenAI = null;
+try {
+  GoogleGenAI = require('@google/genai').GoogleGenAI;
+} catch (_) {
+  GoogleGenAI = null;
+}
 
 class GeminiClient {
   constructor({ apiKey, model, logger }) {
@@ -8,18 +13,21 @@ class GeminiClient {
     this.model = model || 'gemini-2.0-flash';
     this.fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
     this.logger = logger;
-    this.client = apiKey ? new GoogleGenAI({ apiKey }) : null;
+    this.client = (apiKey && GoogleGenAI) ? new GoogleGenAI({ apiKey }) : null;
   }
 
   updateConfig({ apiKey, model }) {
     if (apiKey) {
       this.apiKey = apiKey;
-      this.client = new GoogleGenAI({ apiKey });
+      this.client = (apiKey && GoogleGenAI) ? new GoogleGenAI({ apiKey }) : null;
     }
     if (model) this.model = model;
   }
 
   async chat({ messages, tools = [] }) {
+    if (!GoogleGenAI) {
+      throw new Error('Gemini package not installed. Run: npm install @google/genai — or switch Provider to Groq in Settings.');
+    }
     if (!this.client) throw new Error('Gemini API key not configured');
 
     const contents = messages.map((m) => ({
