@@ -8,7 +8,7 @@ const DEFAULTS = {
   groqApiKey: process.env.GROQ_API_KEY || '',
   groqModel: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
   fishApiKey: process.env.FISH_API_KEY || '',
   fishVoiceId: process.env.FISH_VOICE_ID || '14129c3e320149449d6bada6862f7338',
   elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
