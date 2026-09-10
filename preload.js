@@ -7,6 +7,7 @@ const ALLOWED_BUS_EVENTS = new Set([
   'bus:confirmation:request', 'bus:tool:executing', 'bus:tool:result', 'bus:error',
   'bus:assistant:speaking', 'bus:assistant:interrupted',
   'bus:hologram:show', 'bus:hologram:hide', 'bus:hologram:view',
+  'bus:update:available',
 ]);
 
 contextBridge.exposeInMainWorld('jarvis', {
@@ -15,6 +16,10 @@ contextBridge.exposeInMainWorld('jarvis', {
     update: (partial) => ipcRenderer.invoke('config:update', partial),
     testAI: () => ipcRenderer.invoke('config:testAI'),
     testVoice: () => ipcRenderer.invoke('config:testVoice'),
+  },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    apply: () => ipcRenderer.invoke('update:apply'),
   },
   chat: {
     sendMessage: (text) => ipcRenderer.invoke('chat:sendMessage', text),
