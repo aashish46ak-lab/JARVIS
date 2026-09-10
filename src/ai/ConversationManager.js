@@ -2,7 +2,6 @@
 
 const systemPrompt = require('./SystemPrompt');
 const GroqClient = require('./GroqClient');
-const GeminiClient = require('./GeminiClient');
 
 class ConversationManager {
   constructor({ config, toolRegistry, permissionManager, memoryStore, eventBus, logger }) {
@@ -19,23 +18,29 @@ class ConversationManager {
 
   refreshProvider() {
     let provider = this.config.get('aiProvider') || 'groq';
-    // Prefer Groq when a Groq key exists (avoids stale Gemini / dead models)
-    if (this.config.get('groqApiKey') && provider !== 'gemini') {
+    if (this.config.get('groqApiKey')) {
       provider = 'groq';
     }
+
     if (provider === 'gemini' && this.config.get('geminiApiKey')) {
-      this.provider = new GeminiClient({
-        apiKey: this.config.get('geminiApiKey'),
-        model: this.config.get('geminiModel') || 'gemini-2.0-flash',
-        logger: this.logger,
-      });
-    } else {
-      this.provider = new GroqClient({
-        apiKey: this.config.get('groqApiKey'),
-        model: this.config.get('groqModel') || 'llama-3.1-8b-instant',
-        logger: this.logger,
-      });
+      try {
+        const GeminiClient = require('./GeminiClient');
+        this.provider = new GeminiClient({
+          apiKey: this.config.get('geminiApiKey'),
+          model: this.config.get('geminiModel') || 'gemini-2.0-flash',
+          logger: this.logger,
+        });
+        return;
+      } catch (err) {
+        if (this.logger) this.logger.warn('AI', 'Gemini unavailable, using Groq', { error: err.message });
+      }
     }
+
+    this.provider = new GroqClient({
+      apiKey: this.config.get('groqApiKey'),
+      model: this.config.get('groqModel') || 'llama-3.1-8b-instant',
+      logger: this.logger,
+    });
   }
 
   resetHistory() {
