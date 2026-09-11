@@ -35,12 +35,12 @@ class TTSService {
             model,
           },
           body: JSON.stringify({
-            text: String(text).slice(0, 2000),
+            text: String(text).slice(0, 1200),
             reference_id: this.voiceId,
             format: 'mp3',
             normalize: true,
-            latency: 'balanced',
-            prosody: { speed: this.speed || 1.0, volume: 0 },
+            latency: 'low',
+            prosody: { speed: this.speed || 1.05, volume: 0 },
           }),
         });
 
