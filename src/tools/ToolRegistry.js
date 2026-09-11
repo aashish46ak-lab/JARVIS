@@ -20,7 +20,7 @@ class ToolRegistry {
   _buildTools() {
     return {
       open_app: {
-        description: 'Open an application, file, folder, or URL',
+        description: 'Open an application, file, folder, or URL. Only when user asks to open something.',
         parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
         execute: async ({ name }) => {
           const map = {
@@ -46,15 +46,14 @@ class ToolRegistry {
         },
       },
       web_search: {
-        description: 'Search the web',
+        description: 'ONLY if user explicitly asks to open Google/browser. For normal questions answer yourself — do not use this tool.',
         parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
         execute: async ({ query }) => {
-          await open('https://www.google.com/search?q=' + encodeURIComponent(query));
-          return { ok: true, message: 'Searching for ' + query };
+          return { ok: true, message: 'Answer the user directly from knowledge about: ' + query + '. Do not open a browser.', query };
         },
       },
       youtube_search: {
-        description: 'Search YouTube',
+        description: 'Only if user asks to open YouTube search in the browser.',
         parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
         execute: async ({ query }) => {
           await open('https://www.youtube.com/results?search_query=' + encodeURIComponent(query));
@@ -152,10 +151,10 @@ class ToolRegistry {
         execute: async ({ query }) => this.memoryStore.getRelevant(query),
       },
       show_hologram: {
-        description: 'Project a 3D wireframe hologram. Prefer object: jarvis, core, suit, head, sphere, planet, cube, pyramid, torus, molecule, car, robot, building, aircraft, plane, satellite. Set label to what the user asked for.',
+        description: 'Project a 3D wireframe hologram when user asks for a specific object.',
         parameters: { type: 'object', properties: { object: { type: 'string' }, label: { type: 'string' }, color: { type: 'string' }, note: { type: 'string' } }, required: ['object'] },
         execute: async ({ object, label, color, note }) => {
-          const payload = { object: String(object || 'jarvis').toLowerCase(), label: label || object || 'Model', color: color || '#4fd8ff', note: note || '' };
+          const payload = { object: String(object || 'sphere').toLowerCase(), label: label || object || 'Model', color: color || '#ff9a1f', note: note || '' };
           if (this.eventBus) this.eventBus.safeEmit('hologram:show', payload);
           return { ok: true, message: 'Hologram projected: ' + payload.label };
         },
