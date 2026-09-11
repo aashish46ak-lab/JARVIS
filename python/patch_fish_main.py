@@ -14,7 +14,8 @@ new_init = '''self._is_speaking         = False
             _fcfg = json.loads(open(API_CONFIG_PATH, encoding="utf-8").read())
             _fkey = (_fcfg.get("fish_api_key") or "").strip()
             if _fkey:
-                from core.tts import FishAudioTTSEngine, TTSPlayer
+                from core.fish_tts import FishAudioTTSEngine
+                from core.tts import TTSPlayer
                 _vid = (_fcfg.get("fish_voice_id") or "14129c3e320149449d6bada6862f7338").strip()
                 self._fish_player = TTSPlayer(FishAudioTTSEngine(_fkey, _vid))
                 self._use_fish_voice = True
