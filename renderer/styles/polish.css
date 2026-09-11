@@ -1,0 +1,57 @@
+/* v2.1.1 polish */
+:root {
+  --gold: #ff9a1f;
+  --gold-bright: #ffd27a;
+}
+.logo, .setup-card h1 {
+  font-family: "Orbitron", "Segoe UI", sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.38em !important;
+  background: linear-gradient(100deg, #fff6e0, #ffd27a 30%, #ff9a1f 55%, #ffd27a 80%, #fff6e0) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+.version-badge {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-size: 0.68rem !important;
+  letter-spacing: 0.18em;
+  color: var(--gold-bright) !important;
+  opacity: 0.65;
+  top: 48px !important;
+  left: 16px !important;
+}
+.mic-btn, #btn-mic { display: none !important; }
+.panel {
+  border-color: rgba(255, 154, 31, 0.22) !important;
+  box-shadow: 0 0 24px rgba(255, 154, 31, 0.06) !important;
+}
+.panel-title {
+  color: var(--gold) !important;
+  font-family: "Orbitron", sans-serif;
+  letter-spacing: 0.2em;
+}
+.bar-fill {
+  background: linear-gradient(90deg, #c45a00, #ff9a1f) !important;
+  box-shadow: 0 0 8px rgba(255,154,31,0.5) !important;
+}
+#clock-time, #viz-status {
+  color: var(--gold-bright) !important;
+  text-shadow: 0 0 16px rgba(255,154,31,0.5) !important;
+  font-family: "Orbitron", sans-serif;
+}
+.drawer-header h2, .s-section {
+  color: var(--gold) !important;
+  font-family: "Orbitron", sans-serif;
+  letter-spacing: 0.16em;
+}
+.s-primary, #s-save {
+  background: linear-gradient(90deg, #c45a00, #ff9a1f) !important;
+  border-color: #ff9a1f !important;
+  color: #120800 !important;
+  font-weight: 700 !important;
+}
+#viz-canvas {
+  filter: drop-shadow(0 0 40px rgba(255,154,31,0.35)) !important;
+}
