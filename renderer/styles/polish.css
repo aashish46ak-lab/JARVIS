@@ -55,3 +55,17 @@
 #viz-canvas {
   filter: drop-shadow(0 0 40px rgba(255,154,31,0.35)) !important;
 }
+
+/* v2.3 MCU HUD */
+#viz-canvas {
+  filter: drop-shadow(0 0 36px rgba(79, 216, 255, 0.45)) drop-shadow(0 0 12px rgba(255, 154, 31, 0.2)) !important;
+}
+.center-stage .tagline {
+  letter-spacing: 0.35em;
+  color: rgba(79, 216, 255, 0.75) !important;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.72rem;
+}
+#btn-fullscreen {
+  font-size: 1.05rem;
+}
