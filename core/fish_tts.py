@@ -5,11 +5,13 @@ import io
 
 import numpy as np
 
+DEFAULT_VOICE_ID = "05b36da8574341d0803391491850db20"
+
 
 class FishAudioTTSEngine:
-    def __init__(self, api_key: str, voice_id: str = "14129c3e320149449d6bada6862f7338"):
+    def __init__(self, api_key: str, voice_id: str = DEFAULT_VOICE_ID):
         self.api_key = (api_key or "").strip()
-        self.voice_id = (voice_id or "").strip() or "14129c3e320149449d6bada6862f7338"
+        self.voice_id = (voice_id or "").strip() or DEFAULT_VOICE_ID
         if not self.api_key:
             raise ValueError("Fish API key required")
 
