@@ -15,6 +15,8 @@ function needsTools(text) {
     'system status', 'cpu', 'ram ', 'disk ', 'battery',
     'remember ', 'recall ', 'processes',
     'folder', 'downloads', 'desktop',
+    'lock', 'volume', 'notify', 'message box', 'mute',
+    'weather', 'youtube', 'brightness', 'shutdown', 'restart', 'clipboard',
   ];
   return toolHints.some((h) => t.includes(h));
 }
@@ -66,6 +68,12 @@ class ConversationManager {
     this.history.push({ role: 'user', content: text });
 
     const useTools = needsTools(text);
+    if (useTools) {
+      this.eventBus.safeEmit('assistant:ack', {
+        text: 'On it, sir — working on that now.',
+      });
+    }
+
     const tools = useTools ? this.toolRegistry.getToolDefinitions() : [];
     let replyText = '';
     let iterations = 0;
