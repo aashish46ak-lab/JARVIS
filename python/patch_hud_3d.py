@@ -1,100 +1,136 @@
-"""Patch HudCanvas: dotted rings + red core (voice expand). Run: python patch_hud_3d.py"""
+"""Apply cyan circular J.A.R.V.I.S. HUD. Run: python patch_hud_3d.py"""
 from pathlib import Path
 import re
 
 p = Path(__file__).resolve().parent / "ui.py"
 t = p.read_text(encoding="utf-8")
-if "JARVIS core: dotted rings" in t:
-    print("Already patched")
+if "Cyan circular J.A.R.V.I.S. HUD" in t:
+    print("Already patched (cyan HUD)")
     raise SystemExit(0)
 
-# Find the no-face orb branch: from "else:" + orb_r through assistant_name drawText
-pat = re.compile(
-    r"        else:\n"
-    r"            orb_r = int\(fw \* 0\.\d+ \* self\._scale\).*?"
-    r"AlignCenter, self\._assistant_name\)",
-    re.S,
-)
-m = pat.search(t)
-if not m:
-    # already partially 3d-patched energy sphere style
-    pat2 = re.compile(
-        r"        else:\n"
-        r"            # ── 3D energy sphere.*?"
-        r"AlignCenter, self\._assistant_name\)",
+patterns = [
+    re.compile(
+        r"        else:\n            # ── JARVIS core: dotted rings.*?AlignCenter, st\)",
         re.S,
-    )
-    m = pat2.search(t)
+    ),
+    re.compile(
+        r"        else:\n            # ── 3D energy sphere.*?AlignCenter, self\._assistant_name\)",
+        re.S,
+    ),
+    re.compile(
+        r"        else:\n            orb_r = int\(fw \* 0\.\d+ \* self\._scale\).*?AlignCenter, self\._assistant_name\)",
+        re.S,
+    ),
+]
+m = None
+for pat in patterns:
+    m = pat.search(t)
+    if m:
+        break
 if not m:
-    raise SystemExit("orb block not found — open ui.py and search for 'orb_r = int'")
+    raise SystemExit("Could not find HUD orb block in ui.py")
 
-new_orb = r'''        else:
-            # ── JARVIS core: dotted rings + red heart, pitch-reactive ────────
+new = r'''        else:
+            # ── Cyan circular J.A.R.V.I.S. HUD (reference style) ─────────────
             amp = float(getattr(self, "_amp_disp", 0.0) or 0.0)
-            breathe = 1.0 + 0.08 * math.sin(self._tick * 0.06)
-            pulse = 1.0 + amp * 0.45
-            base = fw * 0.22 * self._scale * breathe * pulse
+            speaking = bool(getattr(self, "speaking", False))
+            listen = (getattr(self, "state", "") == "LISTENING")
+            tick = self._tick
+            R = fw * 0.38 * self._scale * (1.0 + amp * 0.12)
 
-            for i in range(8, 0, -1):
-                r = base * (1.9 + i * 0.08)
-                a = max(0, min(90, int(18 * i + amp * 50)))
+            for i in range(6, 0, -1):
+                rr = R * (1.15 + i * 0.06)
+                a = max(0, min(70, int(8 * i + amp * 40)))
                 p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QBrush(qcol(C.PRI, a // 3)))
-                p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+                p.setBrush(QBrush(qcol("#00d4ff", a)))
+                p.drawEllipse(QRectF(cx - rr, cy - rr, rr * 2, rr * 2))
 
-            n_rings = 5
-            for ri in range(n_rings):
-                ring_r = base * (0.55 + ri * 0.28)
-                n_dots = 36 + ri * 8 + int(amp * 24)
-                rot = self._tick * (0.4 + ri * 0.15) + ri * 20
-                a = max(40, min(220, int(70 + amp * 120 - ri * 15)))
-                col = qcol(C.MUTED_C if self.muted else C.PRI, a)
-                p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QBrush(col))
-                for di in range(n_dots):
-                    ang = math.radians(rot + di * (360.0 / n_dots))
-                    dx = ring_r * math.cos(ang)
-                    dy = ring_r * math.sin(ang) * 0.92
-                    sz = 1.6 + amp * 1.2 + (0.4 if ri == 0 else 0)
-                    p.drawEllipse(QPointF(cx + dx, cy + dy), sz, sz)
-
-            for idx, rf in enumerate((1.15, 1.45, 1.75)):
-                rr = base * rf
-                p.setPen(QPen(qcol(C.PRI, 50 + int(amp * 80)), 1.5))
+            for rf, w, base_a in [
+                (1.00, 3.5, 200), (0.88, 2.0, 160), (0.76, 6.0, 90),
+                (0.68, 2.5, 180), (0.55, 1.5, 120), (0.42, 2.0, 100),
+            ]:
+                rr = R * rf
+                a = max(40, min(255, int(base_a + amp * 80)))
+                col = qcol("#00b8e6" if not self.muted else C.MUTED_C, a)
+                p.setPen(QPen(col, w))
                 p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(QRectF(cx - rr, cy - rr, rr * 2, rr * 2))
+
+            for idx, (rf, span, gap, spd) in enumerate([
+                (0.96, 50, 25, 0.7), (0.92, 30, 40, -0.5), (0.84, 70, 20, 0.35),
+            ]):
+                rr = R * rf
                 rect = QRectF(cx - rr, cy - rr, rr * 2, rr * 2)
-                start = int((self._rings[idx % 3] + idx * 40) * 16)
-                p.drawArc(rect, start, int(70 * 16))
+                ang0 = (tick * spd + idx * 40) % 360
+                a = max(80, min(255, int(180 + amp * 60)))
+                p.setPen(QPen(qcol("#5ce1ff", a), 3.0 if speaking else 2.0))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                angle = ang0
+                while angle < ang0 + 360:
+                    p.drawArc(rect, int(angle * 16), int(span * 16))
+                    angle += span + gap
 
-            core_r = base * (0.28 + amp * 0.12)
-            rg = QRadialGradient(QPointF(cx, cy), core_r * 1.4)
+            rr = R * 0.88
+            rect = QRectF(cx - rr, cy - rr, rr * 2, rr * 2)
+            accent_start = int((tick * 0.6) % 360)
+            p.setPen(QPen(qcol("#ffb020", min(255, 200 + int(amp * 55))), 4.0))
+            p.drawArc(rect, accent_start * 16, int((40 + amp * 30) * 16))
+
+            t_out, t_in = R * 1.02, R * 0.94
+            for deg in range(0, 360, 6):
+                rad = math.radians(deg + tick * 0.05)
+                long = (deg % 30 == 0)
+                inn = t_in if long else t_in + R * 0.03
+                p.setPen(QPen(qcol("#00d4ff", 200 if long else 100), 2 if long else 1))
+                p.drawLine(
+                    QPointF(cx + t_out * math.cos(rad), cy - t_out * math.sin(rad)),
+                    QPointF(cx + inn * math.cos(rad), cy - inn * math.sin(rad)),
+                )
+
+            for di in range(48):
+                ang = math.radians(di * (360 / 48) + tick * 0.3)
+                rr = R * 0.48
+                sz = 1.8 + amp * 1.5
+                a = max(60, min(230, int(100 + amp * 100)))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QBrush(qcol("#7ef9ff", a)))
+                p.drawEllipse(QPointF(cx + rr * math.cos(ang), cy - rr * math.sin(ang)), sz, sz)
+
+            core = R * 0.36
+            cg = QRadialGradient(QPointF(cx, cy), core * 1.1)
+            cg.setColorAt(0.0, qcol("#0a1a28", 240))
+            cg.setColorAt(0.7, qcol("#061018", 250))
+            cg.setColorAt(1.0, qcol("#00a0c0", 60))
+            p.setPen(QPen(qcol("#00c8e8", min(255, 120 + int(amp * 80))), 2))
+            p.setBrush(QBrush(cg))
+            p.drawEllipse(QRectF(cx - core, cy - core, core * 2, core * 2))
+
+            if listen or speaking or amp > 0.05:
+                pr = core * (1.15 + amp * 0.35 + 0.05 * math.sin(tick * 0.2))
+                p.setPen(QPen(qcol("#00e5ff" if listen else "#5ce1ff", min(255, 80 + int(amp * 150))), 2))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(QRectF(cx - pr, cy - pr, pr * 2, pr * 2))
+
+            p.setPen(QPen(qcol("#e8f7ff", min(255, 220 + int(amp * 35))), 1))
+            font = QFont("Segoe UI", max(10, int(R * 0.11)), QFont.Weight.Bold)
+            font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
+            p.setFont(font)
+            p.drawText(QRectF(cx - R * 0.5, cy - R * 0.08, R, R * 0.16),
+                       Qt.AlignmentFlag.AlignCenter, "J.A.R.V.I.S.")
+
             if self.muted:
-                rg.setColorAt(0.0, qcol("#662222", 200))
-                rg.setColorAt(0.6, qcol("#331111", 120))
-                rg.setColorAt(1.0, qcol("#000000", 0))
+                st = "MUTED"
+            elif speaking:
+                st = "SPEAKING"
+            elif listen:
+                st = "LISTENING"
             else:
-                rg.setColorAt(0.0, qcol("#ffeeee", min(255, 220 + int(amp * 35))))
-                rg.setColorAt(0.15, qcol("#ff3333", 255))
-                rg.setColorAt(0.4, qcol("#cc0000", 230))
-                rg.setColorAt(0.7, qcol("#880000", 120))
-                rg.setColorAt(1.0, qcol("#330000", 0))
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(rg))
-            p.drawEllipse(QRectF(cx - core_r, cy - core_r, core_r * 2, core_r * 2))
+                st = str(getattr(self, "state", ""))[:12]
+            p.setPen(QPen(qcol("#5ce1ff", 160), 1))
+            p.setFont(QFont("Consolas", max(8, int(R * 0.045))))
+            p.drawText(QRectF(cx - R * 0.4, cy + R * 0.08, R * 0.8, 18),
+                       Qt.AlignmentFlag.AlignCenter, st)'''
 
-            spark = max(2.0, core_r * 0.25)
-            sg = QRadialGradient(QPointF(cx, cy), spark)
-            sg.setColorAt(0.0, qcol("#ffffff", 230))
-            sg.setColorAt(0.5, qcol("#ffaaaa", 100))
-            sg.setColorAt(1.0, qcol("#ff0000", 0))
-            p.setBrush(QBrush(sg))
-            p.drawEllipse(QRectF(cx - spark, cy - spark, spark * 2, spark * 2))
-
-            p.setPen(QPen(qcol(C.PRI, max(100, min(255, int(140 + amp * 80)))), 1))
-            p.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
-            p.drawText(QRectF(cx - 90, cy + base * 1.55, 180, 24),
-                       Qt.AlignmentFlag.AlignCenter, self._assistant_name)'''
-
-t = t[: m.start()] + new_orb + t[m.end() :]
+t = t[: m.start()] + new + t[m.end() :]
 p.write_text(t, encoding="utf-8")
-print("HUD dotted + red core applied — run: python main.py")
+print("Cyan J.A.R.V.I.S. HUD applied — python main.py")
