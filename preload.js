@@ -8,6 +8,7 @@ const ALLOWED_BUS_EVENTS = new Set([
   'bus:assistant:speaking', 'bus:assistant:interrupted',
   'bus:hologram:show', 'bus:hologram:hide', 'bus:hologram:view',
   'bus:update:available',
+  'bus:hotkey',
 ]);
 
 contextBridge.exposeInMainWorld('jarvis', {
@@ -63,6 +64,8 @@ contextBridge.exposeInMainWorld('jarvis', {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     close: () => ipcRenderer.invoke('window:close'),
     toggleAlwaysOnTop: () => ipcRenderer.invoke('window:toggleAlwaysOnTop'),
+    toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
+    isFullscreen: () => ipcRenderer.invoke('window:isFullscreen'),
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
