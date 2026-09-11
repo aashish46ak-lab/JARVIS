@@ -1,6 +1,9 @@
 {
-  "gemini_api_key": "PASTE_YOUR_GOOGLE_AI_STUDIO_KEY_HERE",
+  "gemini_api_key": "PASTE_KEY_FROM_https://aistudio.google.com/apikey",
   "os_system": "Windows",
   "assistant_name": "JARVIS",
-  "user_name": "sir"
+  "user_name": "sir",
+  "fish_api_key": "",
+  "fish_voice_id": "14129c3e320149449d6bada6862f7338",
+  "tts_engine": "fish"
 }
