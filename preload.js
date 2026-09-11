@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld('jarvis', {
     testAI: () => ipcRenderer.invoke('config:testAI'),
     testVoice: () => ipcRenderer.invoke('config:testVoice'),
   },
+  remote: {
+    status: () => ipcRenderer.invoke('remote:status'),
+    setEnabled: (enabled) => ipcRenderer.invoke('remote:setEnabled', enabled),
+    regeneratePin: () => ipcRenderer.invoke('remote:regeneratePin'),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     apply: () => ipcRenderer.invoke('update:apply'),
