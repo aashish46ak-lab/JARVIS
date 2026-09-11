@@ -1,7 +1,4 @@
-"""Test Fish JARVIS voice only.
-Run from python folder:
-  python TEST_FISH.py
-"""
+"""Test Fish JARVIS voice. Run: python TEST_FISH.py"""
 import json
 from pathlib import Path
 
@@ -16,7 +13,6 @@ def main():
     vid = (d.get("fish_voice_id") or "14129c3e320149449d6bada6862f7338").strip()
     if not key or key.startswith("PASTE"):
         print("ERROR: Set fish_api_key in config/api_keys.json")
-        print("Get key: https://fish.audio → API Keys")
         return
     print("Key length:", len(key))
     print("Voice id:", vid)
@@ -31,7 +27,7 @@ def main():
     }
     out = Path(__file__).parent / "fish_test.mp3"
     ok = False
-    for model in ["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free"]:
+    for model in ["s2.1-pro-free", "s1", "s2-pro", "s2.1-pro"]:
         headers = {
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
@@ -48,17 +44,21 @@ def main():
         print("  body", r.text[:200])
 
     if not ok:
-        print("FAILED — check API key / credits on fish.audio")
+        print("FAILED")
         return
 
-    # Play if possible
     try:
-        from core.tts import _play_audio_bytes
-        _play_audio_bytes(out.read_bytes())
+        from core.fish_tts import _play_mp3
+        _play_mp3(out.read_bytes())
         print("Played OK")
     except Exception as e:
-        print("File saved but play failed:", e)
-        print("Open fish_test.mp3 manually to hear voice")
+        print("Play helper failed:", e)
+        try:
+            import os
+            os.startfile(str(out))
+            print("Opened fish_test.mp3 in default player")
+        except Exception as e2:
+            print("Open manually:", out, e2)
 
 if __name__ == "__main__":
     main()
