@@ -1,14 +1,12 @@
-"""Fish Audio TTS — JARVIS voice (free model first)."""
+"""Fish Audio TTS — JARVIS MCU voice."""
 from __future__ import annotations
 
 
 def _play_mp3(audio_bytes: bytes) -> None:
-    """Play MP3 bytes without requiring miniaudio."""
     import io
     import tempfile
     from pathlib import Path
 
-    # 1) miniaudio (if installed)
     try:
         from core.tts import _play_audio_bytes
         _play_audio_bytes(audio_bytes)
@@ -16,7 +14,6 @@ def _play_mp3(audio_bytes: bytes) -> None:
     except Exception:
         pass
 
-    # 2) pydub + sounddevice
     try:
         import numpy as np
         import sounddevice as sd
@@ -33,21 +30,21 @@ def _play_mp3(audio_bytes: bytes) -> None:
     except Exception:
         pass
 
-    # 3) write temp file + Windows default player (non-blocking fallback)
     path = Path(tempfile.gettempdir()) / "jarvis_fish_tts.mp3"
     path.write_bytes(audio_bytes)
     try:
         import os
-        os.startfile(str(path))  # Windows
         import time
-        # rough wait so speech isn't cut immediately
+
+        os.startfile(str(path))
         time.sleep(max(2.0, len(audio_bytes) / 16000))
     except Exception as e:
         raise RuntimeError(f"Could not play MP3 ({path}): {e}") from e
 
 
 class FishAudioTTSEngine:
-    DEFAULT_VOICE = "14129c3e320149449d6bada6862f7338"
+    # Jarvis (MCU) on Fish Audio — https://fish.audio/m/05b36da8574341d0803391491850db20
+    DEFAULT_VOICE = "05b36da8574341d0803391491850db20"
 
     def __init__(self, api_key: str, voice_id: str | None = None):
         self.api_key = (api_key or "").strip()
@@ -69,7 +66,6 @@ class FishAudioTTSEngine:
             "latency": "balanced",
         }
 
-        # Free tier first — paid models return 402 without API credit
         models = ["s2.1-pro-free", "s1", "s2-pro", "s2.1-pro"]
         last_err = None
         for model in models:
