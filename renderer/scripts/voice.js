@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * JARVIS voice layer — STT + TTS orchestration.
+ * Critical fix: strong anti-echo so JARVIS never hears its own speech
+ * and does not repeat the same command 3–4 times.
+ */
 const JarvisVoice = (function () {
   const listeners = {};
   function on(evt, cb) {
@@ -23,7 +28,11 @@ const JarvisVoice = (function () {
   let micStream = null;
   let analyser = null;
   let lastTranscriptAt = 0;
+  let lastTranscriptText = '';
   let isSpeaking = false;
+  let muteUntil = 0;
+  const POST_SPEAK_MUTE_MS = 1600;
+  const DUPLICATE_WINDOW_MS = 4500;
 
   function configure(opts) {
     if (!opts) return;
@@ -32,11 +41,15 @@ const JarvisVoice = (function () {
     if (opts.listeningMode) listeningMode = opts.listeningMode;
   }
 
+  function isMuted() {
+    return isSpeaking || Date.now() < muteUntil;
+  }
+
   async function initMicLevelMeter() {
     try {
       if (micStream) return;
       micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       var src = audioCtx.createMediaStreamSource(micStream);
@@ -50,7 +63,7 @@ const JarvisVoice = (function () {
         analyser.getByteFrequencyData(data);
         var sum = 0;
         for (var i = 0; i < data.length; i++) sum += data[i];
-        emit('micLevel', Math.min(1, (sum / data.length) / 80));
+        emit('micLevel', Math.min(1, sum / data.length / 80));
       })();
     } catch (e) {
       emit('micError', { message: 'Allow microphone for JARVIS' });
@@ -60,18 +73,22 @@ const JarvisVoice = (function () {
   function scheduleKeepAlive() {
     if (keepAliveTimer) clearTimeout(keepAliveTimer);
     keepAliveTimer = setTimeout(function () {
-      if (!continuousWanted || isSpeaking) return;
+      if (!continuousWanted || isMuted()) return;
       try { if (recognition) recognition.stop(); } catch (_) {}
       setTimeout(function () {
-        if (continuousWanted && !isSpeaking) startContinuousListening(true);
-      }, 250);
+        if (continuousWanted && !isMuted()) startContinuousListening(true);
+      }, 300);
     }, 20000);
+  }
+
+  function normalizeForDedupe(t) {
+    return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
   }
 
   function bindHandlers(rec) {
     rec.onstart = function () { restarting = false; scheduleKeepAlive(); };
     rec.onresult = function (event) {
-      if (isSpeaking) return;
+      if (isMuted()) return;
       scheduleKeepAlive();
       var finalText = '';
       var interim = '';
@@ -79,13 +96,16 @@ const JarvisVoice = (function () {
         if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
         else interim += event.results[i][0].transcript;
       }
-      if (interim) emit('interim', interim);
+      if (interim && !isMuted()) emit('interim', interim);
       if (!finalText) return;
       var text = finalText.trim();
       if (!text) return;
       var now = Date.now();
-      if (now - lastTranscriptAt < 900) return;
+      if (now - lastTranscriptAt < 1000) return;
+      var norm = normalizeForDedupe(text);
+      if (norm && norm === lastTranscriptText && now - lastTranscriptAt < DUPLICATE_WINDOW_MS) return;
       lastTranscriptAt = now;
+      lastTranscriptText = norm;
       if (wakeWordEnabled) {
         var lower = text.toLowerCase();
         if (lower.indexOf(wakeWord) === -1) return;
@@ -105,45 +125,51 @@ const JarvisVoice = (function () {
       if (err !== 'no-speech' && err !== 'aborted') scheduleKeepAlive();
     };
     rec.onend = function () {
-      if (!continuousWanted || isSpeaking) return;
+      if (!continuousWanted || isMuted()) return;
       if (restarting) return;
       restarting = true;
       setTimeout(function () {
         restarting = false;
-        if (!continuousWanted || isSpeaking) return;
+        if (!continuousWanted || isMuted()) return;
         try {
           recognition.start();
           scheduleKeepAlive();
         } catch (_) {
           setTimeout(function () {
-            if (continuousWanted && !isSpeaking) startContinuousListening(true);
+            if (continuousWanted && !isMuted()) startContinuousListening(true);
           }, 500);
         }
-      }, 200);
+      }, 250);
     };
   }
 
   function startContinuousListening() {
     continuousWanted = true;
     listeningMode = 'continuous';
+    if (isMuted()) {
+      setTimeout(function () {
+        if (continuousWanted && !isMuted()) startContinuousListening(true);
+      }, Math.max(300, muteUntil - Date.now() + 50));
+      return;
+    }
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      emit('fallbackPushToTalk', { message: 'Speech recognition unavailable — type below' });
+      emit('micError', { message: 'Speech recognition not supported in this browser engine' });
       return;
     }
     try {
-      if (!recognition) {
-        recognition = new SR();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-        recognition.maxAlternatives = 1;
-        bindHandlers(recognition);
+      if (recognition) {
+        try { recognition.onend = null; recognition.stop(); } catch (_) {}
       }
-      try { recognition.start(); } catch (_) {}
+      recognition = new SR();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+      bindHandlers(recognition);
+      recognition.start();
       scheduleKeepAlive();
     } catch (err) {
-      emit('micError', { message: String(err && err.message || err) });
+      emit('micError', { message: (err && err.message) || String(err) });
     }
   }
 
@@ -160,9 +186,10 @@ const JarvisVoice = (function () {
     text = String(text || '').trim();
     if (!text) return;
     isSpeaking = true;
+    muteUntil = Date.now() + 60 * 60 * 1000;
     stopSpeaking(true);
     stopContinuousListening();
-
+    emit('ttsLevel', 0.3);
     try {
       var res = await window.jarvis.tts.synthesize(text);
       if (res && res.ok && res.audio) {
@@ -190,10 +217,14 @@ const JarvisVoice = (function () {
     } catch (e) {
       emit('micError', { message: 'Voice error — set Fish API key in Settings' });
     }
-
     isSpeaking = false;
+    muteUntil = Date.now() + POST_SPEAK_MUTE_MS;
     continuousWanted = true;
-    setTimeout(function () { startContinuousListening(); }, 300);
+    lastTranscriptText = normalizeForDedupe(text);
+    lastTranscriptAt = Date.now();
+    setTimeout(function () {
+      if (continuousWanted && !isSpeaking) startContinuousListening();
+    }, POST_SPEAK_MUTE_MS + 100);
   }
 
   function stopSpeaking() {
@@ -203,6 +234,10 @@ const JarvisVoice = (function () {
     }
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
     emit('ttsLevel', 0);
+    if (isSpeaking) {
+      isSpeaking = false;
+      muteUntil = Date.now() + 800;
+    }
   }
 
   return {
