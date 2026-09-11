@@ -13,14 +13,14 @@
   <div id="setup-screen" class="screen hidden">
     <div class="setup-card">
       <h1>J.A.R.V.I.S.</h1>
-      <p class="tagline">SYSTEM INITIALIZATION · v2.1</p>
+      <p class="tagline">SYSTEM INITIALIZATION · v2.3</p>
       <div id="setup-steps"></div>
       <button id="setup-finish" class="primary" disabled>CONTINUE</button>
     </div>
   </div>
 
   <div id="hud-screen" class="screen hidden">
-    <div class="version-badge">v2.1.1</div>
+    <div class="version-badge">v2.3.0</div>
     <div id="face-chip" class="face-chip hidden"><img id="face-chip-img" alt="enrolled" /></div>
     <header class="top-bar">
       <div class="left">
@@ -30,6 +30,7 @@
         <span id="live-chip" class="chip live">LIVE</span>
       </div>
       <div class="right">
+        <button id="btn-fullscreen" title="Toggle fullscreen (F2)">⛶</button>
         <button id="btn-pin" title="Always on top">📌</button>
         <button id="btn-settings" title="Settings">⚙</button>
         <button id="btn-minimize" title="Minimize">—</button>
@@ -64,8 +65,8 @@
         <div class="panel-title" style="margin-top:0.8rem">QUICK LAUNCH</div>
         <div id="quicklaunch" class="quicklaunch">
           <button class="ql-btn" data-app="chrome">Chrome</button>
+          <button class="ql-btn" data-app="instagram">Instagram</button>
           <button class="ql-btn" data-app="code">VS Code</button>
-          <button class="ql-btn" data-app="spotify">Spotify</button>
           <button class="ql-btn" data-app="https://youtube.com">YouTube</button>
         </div>
       </aside>
@@ -74,7 +75,7 @@
     <footer class="bottom-bar">
       <div id="conversation" class="conversation"></div>
       <div class="input-row">
-        <input id="text-input" type="text" placeholder="Always listening — speak or type…" autocomplete="off" />
+        <input id="text-input" type="text" placeholder="Always listening — speak or type… (F1 mute / F2 fullscreen)" autocomplete="off" />
         <button id="btn-send" class="send-btn">SEND</button>
       </div>
     </footer>
