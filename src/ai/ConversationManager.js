@@ -3,6 +3,22 @@
 const systemPrompt = require('./SystemPrompt');
 const GroqClient = require('./GroqClient');
 
+function needsTools(text) {
+  const t = String(text || '').toLowerCase();
+  const toolHints = [
+    'open ', 'launch ', 'start ', 'run ', 'execute ',
+    'search youtube', 'open google', 'open chrome', 'open browser',
+    'list files', 'read file', 'write file', 'delete ',
+    'shell ', 'command ', 'terminal ',
+    'screenshot', 'type text',
+    'show hologram', 'project ', 'hologram',
+    'system status', 'cpu', 'ram ', 'disk ', 'battery',
+    'remember ', 'recall ', 'processes',
+    'folder', 'downloads', 'desktop',
+  ];
+  return toolHints.some((h) => t.includes(h));
+}
+
 class ConversationManager {
   constructor({ config, toolRegistry, permissionManager, memoryStore, eventBus, logger }) {
     this.config = config;
@@ -18,9 +34,7 @@ class ConversationManager {
 
   refreshProvider() {
     let provider = this.config.get('aiProvider') || 'groq';
-    if (this.config.get('groqApiKey')) {
-      provider = 'groq';
-    }
+    if (this.config.get('groqApiKey')) provider = 'groq';
 
     if (provider === 'gemini' && this.config.get('geminiApiKey')) {
       try {
@@ -51,21 +65,32 @@ class ConversationManager {
     this.eventBus.safeEmit('state:change', { state: 'thinking' });
     this.history.push({ role: 'user', content: text });
 
-    const tools = this.toolRegistry.getToolDefinitions();
+    const useTools = needsTools(text);
+    const tools = useTools ? this.toolRegistry.getToolDefinitions() : [];
     let replyText = '';
     let iterations = 0;
-    const maxIterations = 5;
+    const maxIterations = useTools ? 4 : 1;
 
     while (iterations < maxIterations) {
       iterations += 1;
       const messages = [
-        { role: 'system', content: systemPrompt + '\n\nCurrent time: ' + new Date().toLocaleString() },
+        {
+          role: 'system',
+          content: systemPrompt + '\n\nCurrent time: ' + new Date().toLocaleString() +
+            (useTools ? '' : '\n\nTOOLS DISABLED for this turn. Answer from knowledge only. Be brief.'),
+        },
         ...this.history,
       ];
 
-      const { text: out, functionCalls } = await this.provider.chat({ messages, tools });
+      const { text: out, functionCalls } = await this.provider.chat({
+        messages,
+        tools,
+        forceNoTools: !useTools,
+        maxTokens: useTools ? 400 : 220,
+        temperature: 0.45,
+      });
 
-      if (functionCalls && functionCalls.length > 0) {
+      if (useTools && functionCalls && functionCalls.length > 0) {
         for (const fc of functionCalls) {
           this.eventBus.safeEmit('tool:executing', { name: fc.name });
           let approved = true;
@@ -98,7 +123,7 @@ class ConversationManager {
     }
 
     this.history.push({ role: 'assistant', content: replyText });
-    if (this.history.length > 30) this.history = this.history.slice(-20);
+    if (this.history.length > 24) this.history = this.history.slice(-16);
 
     this.eventBus.safeEmit('state:change', { state: 'idle' });
     return replyText;
