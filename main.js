@@ -16,6 +16,7 @@ const ConversationManager = require('./src/ai/ConversationManager');
 const TTSService = require('./src/voice/TTSService');
 const STTService = require('./src/voice/STTService');
 const Updater = require('./src/core/Updater');
+const RemoteBridge = require('./src/platform/RemoteBridge');
 const si = require('systeminformation');
 
 let mainWindow = null;
@@ -38,6 +39,9 @@ const ttsService = new TTSService({
 });
 const sttService = new STTService({ apiKey: config.get('geminiApiKey') || config.get('groqApiKey'), logger });
 const updater = new Updater({ appRoot: __dirname, config, logger, eventBus });
+const remoteBridge = new RemoteBridge({
+  config, conversationManager, eventBus, logger, appRoot: __dirname,
+});
 
 function createTray() {
   const png = Buffer.from(
@@ -49,12 +53,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('J.A.R.V.I.S. — click to open');
   const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open JARVIS',
-      click: () => {
-        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
-      },
-    },
+    { label: 'Open JARVIS', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
     {
       label: 'Start with Windows',
       type: 'checkbox',
@@ -65,10 +64,7 @@ function createTray() {
       },
     },
     { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => { app.isQuitting = true; app.quit(); },
-    },
+    { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
   tray.setContextMenu(contextMenu);
   tray.on('click', () => {
@@ -80,39 +76,25 @@ function createTray() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1100,
-    minHeight: 700,
-    backgroundColor: '#05070a',
-    show: false,
-    alwaysOnTop: config.get('alwaysOnTop'),
-    autoHideMenuBar: true,
+    width: 1440, height: 900, minWidth: 1100, minHeight: 700,
+    backgroundColor: '#05070a', show: false,
+    alwaysOnTop: config.get('alwaysOnTop'), autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
+      contextIsolation: true, nodeIntegration: false, sandbox: false,
     },
   });
-
   Menu.setApplicationMenu(null);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-
   mainWindow.once('ready-to-show', () => {
     if (!config.get('startMinimized')) mainWindow.show();
   });
-
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
-
   mainWindow.on('close', (e) => {
-    if (!app.isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
+    if (!app.isQuitting) { e.preventDefault(); mainWindow.hide(); }
   });
 }
 
@@ -120,8 +102,7 @@ const FORWARDED_EVENTS = [
   'state:change', 'activity', 'assistant:interim', 'assistant:final',
   'confirmation:request', 'tool:executing', 'tool:result', 'error',
   'assistant:speaking', 'assistant:interrupted',
-  'hologram:show', 'hologram:hide', 'hologram:view',
-  'update:available',
+  'hologram:show', 'hologram:hide', 'hologram:view', 'update:available',
 ];
 for (const evt of FORWARDED_EVENTS) {
   eventBus.on(evt, (payload) => {
@@ -140,18 +121,12 @@ ipcMain.handle('chat:sendMessage', async (_evt, text) => {
     return { ok: false, error: err.message };
   }
 });
-
-ipcMain.handle('chat:resetHistory', async () => {
-  conversationManager.resetHistory();
-  return { ok: true };
-});
-
+ipcMain.handle('chat:resetHistory', async () => { conversationManager.resetHistory(); return { ok: true }; });
 ipcMain.handle('confirmation:respond', async (_evt, { id, approved }) => {
   permissionManager.resolve(id, approved);
   eventBus.safeEmit('confirmation:resolved', { id, approved });
   return { ok: true };
 });
-
 ipcMain.handle('voice:transcribeFallback', async (_evt, { base64, mimeType }) => {
   try {
     const buf = Buffer.from(base64, 'base64');
@@ -161,7 +136,6 @@ ipcMain.handle('voice:transcribeFallback', async (_evt, { base64, mimeType }) =>
     return { ok: false, error: err.message };
   }
 });
-
 ipcMain.handle('tts:synthesize', async (_evt, text) => {
   try {
     if (!config.get('voiceEnabled')) return { ok: false, error: 'Voice output is disabled.' };
@@ -171,9 +145,7 @@ ipcMain.handle('tts:synthesize', async (_evt, text) => {
     return { ok: false, error: err.message };
   }
 });
-
 ipcMain.handle('config:getAll', async () => config.getAllMasked());
-
 ipcMain.handle('config:update', async (_evt, partial) => {
   const updated = config.update(partial);
   ttsService.updateConfig({
@@ -187,46 +159,35 @@ ipcMain.handle('config:update', async (_evt, partial) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(config.get('alwaysOnTop'));
   return updated;
 });
-
-ipcMain.handle('config:testAI', async () => {
-  conversationManager.refreshProvider();
-  return conversationManager.testConnection();
-});
-
+ipcMain.handle('config:testAI', async () => { conversationManager.refreshProvider(); return conversationManager.testConnection(); });
 ipcMain.handle('config:testVoice', async () => ttsService.testVoice());
-
+ipcMain.handle('remote:status', async () => remoteBridge.status());
+ipcMain.handle('remote:setEnabled', async (_e, enabled) => {
+  config.set('remoteEnabled', !!enabled);
+  if (enabled) await remoteBridge.start();
+  else remoteBridge.stop();
+  return remoteBridge.status();
+});
+ipcMain.handle('remote:regeneratePin', async () => {
+  const pin = String(Math.floor(1000 + Math.random() * 9000));
+  config.set('remotePin', pin);
+  return remoteBridge.status();
+});
 ipcMain.handle('update:check', async () => updater.check());
 ipcMain.handle('update:apply', async () => {
   const result = await updater.apply();
-  if (result.ok && result.needsRestart) {
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 1200);
-  }
+  if (result.ok && result.needsRestart) setTimeout(() => { app.relaunch(); app.exit(0); }, 1200);
   return result;
 });
-
 ipcMain.handle('memory:list', async () => memoryStore.list());
 ipcMain.handle('memory:save', async (_evt, { key, value }) => memoryStore.save(key, value));
 ipcMain.handle('memory:forgetById', async (_evt, id) => memoryStore.forgetById(id));
 ipcMain.handle('memory:clear', async () => { memoryStore.clear(); return true; });
-
-ipcMain.handle('system:getStatus', async () => {
-  const systemTools = require('./src/tools/system');
-  return systemTools.getSystemStatus();
-});
-
+ipcMain.handle('system:getStatus', async () => require('./src/tools/system').getSystemStatus());
 ipcMain.handle('logs:getRecent', async (_evt, limit) => logger.getRecent(limit));
 ipcMain.handle('logs:export', async () => {
-  try {
-    const file = logger.exportToFile();
-    return { ok: true, file };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  try { return { ok: true, file: logger.exportToFile() }; } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('window:minimize', async () => mainWindow && mainWindow.minimize());
 ipcMain.handle('window:close', async () => mainWindow && mainWindow.close());
 ipcMain.handle('window:toggleAlwaysOnTop', async () => {
@@ -238,7 +199,6 @@ ipcMain.handle('window:toggleAlwaysOnTop', async () => {
 ipcMain.handle('shell:openExternal', async (_evt, url) => shell.openExternal(url));
 
 const enrollDir = path.join(app.getPath('userData'), 'enrollment');
-
 ipcMain.handle('enroll:saveFace', async (_evt, { dataUrl }) => {
   try {
     await fs.promises.mkdir(enrollDir, { recursive: true });
@@ -249,12 +209,9 @@ ipcMain.handle('enroll:saveFace', async (_evt, { dataUrl }) => {
     config.set('enrollmentFace', true);
     config.set('enrollmentFacePath', file);
     return { ok: true, path: file };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  } catch (err) { return { ok: false, error: err.message }; }
 });
-
-ipcMain.handle('enroll:saveVoice', async (_evt, { base64, mimeType }) => {
+ipcMain.handle('enroll:saveVoice', async (_evt, { base64 }) => {
   try {
     await fs.promises.mkdir(enrollDir, { recursive: true });
     const file = path.join(enrollDir, 'voice.webm');
@@ -262,31 +219,23 @@ ipcMain.handle('enroll:saveVoice', async (_evt, { base64, mimeType }) => {
     config.set('enrollmentVoice', true);
     config.set('enrollmentVoicePath', file);
     return { ok: true, path: file };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('enroll:status', async () => ({
-  face: !!config.get('enrollmentFace'),
-  voice: !!config.get('enrollmentVoice'),
+  face: !!config.get('enrollmentFace'), voice: !!config.get('enrollmentVoice'),
   facePath: config.get('enrollmentFacePath') || null,
   complete: !!(config.get('enrollmentFace') && config.get('enrollmentVoice')),
 }));
-
 ipcMain.handle('enroll:getFaceDataUrl', async () => {
   try {
     const file = config.get('enrollmentFacePath');
     if (!file) return { ok: false };
     const buf = await fs.promises.readFile(file);
     return { ok: true, dataUrl: 'data:image/png;base64,' + buf.toString('base64') };
-  } catch (_) {
-    return { ok: false };
-  }
+  } catch (_) { return { ok: false }; }
 });
 
 const suggestionState = { lowDiskWarned: false, lowBatteryWarned: false, highCpuStreak: 0 };
-
 async function checkProactiveSuggestions() {
   try {
     const status = await si.fsSize();
@@ -295,26 +244,16 @@ async function checkProactiveSuggestions() {
     const primaryDisk = status.sort((a, b) => b.size - a.size)[0];
     if (primaryDisk && primaryDisk.use >= 90 && !suggestionState.lowDiskWarned) {
       suggestionState.lowDiskWarned = true;
-      eventBus.safeEmit('assistant:final', {
-        text: "Sir, storage is getting rather full. Shall I investigate what's using the space?",
-        proactive: true,
-      });
+      eventBus.safeEmit('assistant:final', { text: "Sir, storage is getting rather full.", proactive: true });
     }
     if (battery && battery.hasBattery && battery.percent <= 15 && !battery.isCharging && !suggestionState.lowBatteryWarned) {
       suggestionState.lowBatteryWarned = true;
-      eventBus.safeEmit('assistant:final', {
-        text: 'Battery is down to ' + battery.percent + ' percent. You may want to connect the charger.',
-        proactive: true,
-      });
+      eventBus.safeEmit('assistant:final', { text: 'Battery is down to ' + battery.percent + ' percent.', proactive: true });
     }
     if (battery && battery.isCharging) suggestionState.lowBatteryWarned = false;
-    if (load && load.currentLoad >= 90) suggestionState.highCpuStreak += 1;
-    else suggestionState.highCpuStreak = 0;
+    if (load && load.currentLoad >= 90) suggestionState.highCpuStreak += 1; else suggestionState.highCpuStreak = 0;
     if (suggestionState.highCpuStreak === 6) {
-      eventBus.safeEmit('assistant:final', {
-        text: 'Something has been consuming a considerable amount of CPU. Shall I check running processes?',
-        proactive: true,
-      });
+      eventBus.safeEmit('assistant:final', { text: 'High CPU usage detected. Shall I list processes?', proactive: true });
     }
   } catch (err) {
     logger.debug('SYSTEM', 'Proactive check skipped', { error: err.message });
@@ -322,44 +261,30 @@ async function checkProactiveSuggestions() {
 }
 let proactiveTimer = null;
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-      if (['media', 'microphone', 'camera', 'mediaKeySystem'].includes(permission)) {
-        callback(true);
-        return;
-      }
+      if (['media', 'microphone', 'camera', 'mediaKeySystem'].includes(permission)) { callback(true); return; }
       callback(false);
     });
-    session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
-      return ['media', 'microphone', 'camera'].includes(permission);
-    });
-  } catch (err) {
-    console.warn('Permission handler setup failed', err);
-  }
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => ['media', 'microphone', 'camera'].includes(permission));
+  } catch (err) { console.warn('Permission handler setup failed', err); }
 
   createWindow();
   try { createTray(); } catch (_) {}
+  try { await remoteBridge.start(); } catch (e) { console.warn('Remote bridge failed', e); }
   if (config.get('startWithWindows')) {
     app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
   }
   proactiveTimer = setInterval(checkProactiveSuggestions, 30 * 1000);
 
-  // Background update check — never auto-applies; user must approve
   if (config.get('autoCheckUpdates') !== false) {
     setTimeout(async () => {
       try {
         const status = await updater.check();
         if (status.ok && status.available) {
-          eventBus.safeEmit('update:available', {
-            remoteMessage: status.remoteMessage,
-            remoteSha: status.remoteSha,
-            remoteDate: status.remoteDate,
-          });
-          eventBus.safeEmit('activity', {
-            text: 'Update available: ' + (status.remoteMessage || String(status.remoteSha).slice(0, 7)),
-            level: 'warn',
-          });
+          eventBus.safeEmit('update:available', { remoteMessage: status.remoteMessage, remoteSha: status.remoteSha });
+          eventBus.safeEmit('activity', { text: 'Update available', level: 'warn' });
         }
       } catch (_) {}
     }, 8000);
@@ -372,6 +297,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (proactiveTimer) clearInterval(proactiveTimer);
+  try { remoteBridge.stop(); } catch (_) {}
   if (process.platform !== 'darwin') {
     if (!app.isQuitting) return;
     app.quit();
