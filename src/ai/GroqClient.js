@@ -10,7 +10,6 @@ class GroqClient {
       'llama-3.1-8b-instant',
       'llama-3.3-70b-versatile',
       'openai/gpt-oss-20b',
-      'openai/gpt-oss-120b',
     ];
     this.logger = logger;
     this.baseUrl = 'https://api.groq.com/openai/v1';
@@ -21,40 +20,40 @@ class GroqClient {
     if (model) this.model = model;
   }
 
-  async chat({ messages, tools }) {
-    if (!this.apiKey) throw new Error('Groq API key missing. Open Settings and add key from console.groq.com');
+  async chat({ messages, tools, maxTokens, temperature, forceNoTools }) {
+    if (!this.apiKey) {
+      throw new Error('Groq API key missing. Open Settings and paste your key from console.groq.com');
+    }
 
     const body = {
       model: this.model,
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 500,
+      messages,
+      temperature: temperature != null ? temperature : 0.45,
+      max_tokens: maxTokens != null ? maxTokens : 280,
     };
 
-    if (tools && tools.length) {
-      body.tools = tools.map(function (t) {
-        return {
-          type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters || { type: 'object', properties: {} },
-          },
-        };
-      });
+    if (!forceNoTools && tools && tools.length) {
+      body.tools = tools.map((t) => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters || { type: 'object', properties: {} },
+        },
+      }));
       body.tool_choice = 'auto';
     }
 
-    const modelsToTry = [this.model].concat(this.fallbackModels.filter(function (m) { return m !== body.model; }));
+    const modelsToTry = [this.model, ...this.fallbackModels.filter((m) => m !== this.model)];
     let lastErr = null;
 
-    for (let mi = 0; mi < modelsToTry.length; mi++) {
-      body.model = modelsToTry[mi];
+    for (const model of modelsToTry) {
+      body.model = model;
       try {
-        const res = await fetch(this.baseUrl + '/chat/completions', {
+        const res = await fetch(`${this.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
-            Authorization: 'Bearer ' + this.apiKey,
+            Authorization: `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(body),
@@ -62,29 +61,29 @@ class GroqClient {
 
         if (!res.ok) {
           const errText = await res.text();
-          lastErr = new Error('Groq ' + res.status + ': ' + errText.slice(0, 180));
+          lastErr = new Error(`Groq ${res.status}: ${errText.slice(0, 180)}`);
           if (res.status === 404 || /model/i.test(errText)) continue;
           throw lastErr;
         }
 
-        this.model = body.model;
+        this.model = model;
         const data = await res.json();
         const choice = data.choices && data.choices[0];
         const msg = choice && choice.message;
         let text = (msg && msg.content) || '';
         let functionCalls = [];
         if (msg && msg.tool_calls && Array.isArray(msg.tool_calls)) {
-          functionCalls = msg.tool_calls.map(function (tc) {
+          functionCalls = msg.tool_calls.map((tc) => {
             let args = {};
             try {
               args = typeof tc.function.arguments === 'string'
                 ? JSON.parse(tc.function.arguments)
                 : (tc.function.arguments || {});
             } catch (_) {}
-            return { name: tc.function.name, args: args };
+            return { name: tc.function.name, args };
           });
         }
-        return { text: text.trim(), functionCalls: functionCalls };
+        return { text: text.trim(), functionCalls };
       } catch (err) {
         lastErr = err;
         if (err.message && /model|404/i.test(err.message)) continue;
@@ -98,10 +97,9 @@ class GroqClient {
   async testConnection() {
     try {
       const res = await this.chat({
-        messages: [
-          { role: 'system', content: 'Reply with exactly: online' },
-          { role: 'user', content: 'ping' },
-        ],
+        messages: [{ role: 'user', content: 'Reply with the single word: online' }],
+        forceNoTools: true,
+        maxTokens: 8,
       });
       return { ok: true, reply: res.text };
     } catch (err) {
