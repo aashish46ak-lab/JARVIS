@@ -22,8 +22,8 @@ const JarvisVoice = (function () {
   let speakingAudio = null;
   let micStream = null;
   let analyser = null;
-  let audioCtx = null;
-  let levelRaf = null;
+  let lastTranscriptAt = 0;
+  let isSpeaking = false;
 
   function configure(opts) {
     if (!opts) return;
@@ -38,102 +38,97 @@ const JarvisVoice = (function () {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(micStream);
+      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = audioCtx.createMediaStreamSource(micStream);
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       src.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      function tick() {
-        levelRaf = requestAnimationFrame(tick);
+      var data = new Uint8Array(analyser.frequencyBinCount);
+      (function tick() {
+        requestAnimationFrame(tick);
         if (!analyser) return;
         analyser.getByteFrequencyData(data);
-        let sum = 0;
+        var sum = 0;
         for (var i = 0; i < data.length; i++) sum += data[i];
         emit('micLevel', Math.min(1, (sum / data.length) / 80));
-      }
-      tick();
+      })();
     } catch (e) {
-      emit('micError', { message: 'Mic level meter failed: ' + (e.message || e) });
+      emit('micError', { message: 'Allow microphone for JARVIS' });
     }
   }
 
   function scheduleKeepAlive() {
     if (keepAliveTimer) clearTimeout(keepAliveTimer);
     keepAliveTimer = setTimeout(function () {
-      if (!continuousWanted || listeningMode !== 'continuous') return;
-      if (restarting) return;
+      if (!continuousWanted || isSpeaking) return;
       try { if (recognition) recognition.stop(); } catch (_) {}
       setTimeout(function () {
-        if (continuousWanted) startContinuousListening(true);
-      }, 200);
-    }, 25000);
+        if (continuousWanted && !isSpeaking) startContinuousListening(true);
+      }, 250);
+    }, 20000);
   }
 
-  function bindRecognitionHandlers(rec) {
-    rec.onstart = function () {
-      restarting = false;
-      scheduleKeepAlive();
-    };
+  function bindHandlers(rec) {
+    rec.onstart = function () { restarting = false; scheduleKeepAlive(); };
     rec.onresult = function (event) {
+      if (isSpeaking) return;
       scheduleKeepAlive();
-      var interim = '';
       var finalText = '';
+      var interim = '';
       for (var i = event.resultIndex; i < event.results.length; i++) {
-        var r = event.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else interim += r[0].transcript;
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
+        else interim += event.results[i][0].transcript;
       }
       if (interim) emit('interim', interim);
-      if (finalText) {
-        var text = finalText.trim();
+      if (!finalText) return;
+      var text = finalText.trim();
+      if (!text) return;
+      var now = Date.now();
+      if (now - lastTranscriptAt < 900) return;
+      lastTranscriptAt = now;
+      if (wakeWordEnabled) {
+        var lower = text.toLowerCase();
+        if (lower.indexOf(wakeWord) === -1) return;
+        text = text.replace(new RegExp(wakeWord, 'ig'), '').trim();
+        emit('wake');
         if (!text) return;
-        if (wakeWordEnabled) {
-          var lower = text.toLowerCase();
-          if (lower.indexOf(wakeWord) === -1) return;
-          text = text.replace(new RegExp(wakeWord, 'ig'), '').trim();
-          if (!text) { emit('wake'); return; }
-          emit('wake');
-        }
-        emit('transcript', text);
       }
+      emit('transcript', text);
     };
     rec.onerror = function (e) {
-      var err = (e && e.error) || 'error';
-      if (err === 'no-speech' || err === 'aborted') { scheduleKeepAlive(); return; }
+      var err = (e && e.error) || '';
       if (err === 'not-allowed') {
-        emit('micError', { message: 'Microphone blocked — allow mic in Windows & app permissions' });
         continuousWanted = false;
+        emit('micError', { message: 'Microphone blocked' });
         return;
       }
-      scheduleKeepAlive();
+      if (err !== 'no-speech' && err !== 'aborted') scheduleKeepAlive();
     };
     rec.onend = function () {
-      if (!continuousWanted || listeningMode !== 'continuous') return;
+      if (!continuousWanted || isSpeaking) return;
       if (restarting) return;
       restarting = true;
       setTimeout(function () {
         restarting = false;
-        if (continuousWanted) {
-          try {
-            recognition.start();
-            scheduleKeepAlive();
-          } catch (_) {
-            setTimeout(function () {
-              if (continuousWanted) startContinuousListening(true);
-            }, 400);
-          }
+        if (!continuousWanted || isSpeaking) return;
+        try {
+          recognition.start();
+          scheduleKeepAlive();
+        } catch (_) {
+          setTimeout(function () {
+            if (continuousWanted && !isSpeaking) startContinuousListening(true);
+          }, 500);
         }
-      }, 180);
+      }, 200);
     };
   }
 
-  function startContinuousListening(isRestart) {
+  function startContinuousListening() {
     continuousWanted = true;
     listeningMode = 'continuous';
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      emit('fallbackPushToTalk', { message: 'Speech recognition not supported — use text or hold mic' });
+      emit('fallbackPushToTalk', { message: 'Speech recognition unavailable — type below' });
       return;
     }
     try {
@@ -143,13 +138,12 @@ const JarvisVoice = (function () {
         recognition.interimResults = true;
         recognition.lang = 'en-US';
         recognition.maxAlternatives = 1;
-        bindRecognitionHandlers(recognition);
+        bindHandlers(recognition);
       }
-      try { recognition.start(); } catch (e) {}
+      try { recognition.start(); } catch (_) {}
       scheduleKeepAlive();
-      if (!isRestart) emit('wake');
     } catch (err) {
-      emit('micError', { message: (err && err.message) || String(err) });
+      emit('micError', { message: String(err && err.message || err) });
     }
   }
 
@@ -159,77 +153,19 @@ const JarvisVoice = (function () {
     try { if (recognition) recognition.stop(); } catch (_) {}
   }
 
-  let pttRecorder = null;
-  let pttChunks = [];
-  let pttStream = null;
-
-  async function startPushToTalkRecording() {
-    pttChunks = [];
-    pttStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
-    pttRecorder = new MediaRecorder(pttStream);
-    pttRecorder.ondataavailable = function (e) {
-      if (e.data && e.data.size) pttChunks.push(e.data);
-    };
-    pttRecorder.start(100);
-  }
-
-  async function stopPushToTalkRecording() {
-    return new Promise(function (resolve) {
-      if (!pttRecorder) { resolve(); return; }
-      pttRecorder.onstop = async function () {
-        try {
-          if (pttStream) pttStream.getTracks().forEach(function (t) { t.stop(); });
-          startContinuousListening();
-        } catch (_) {}
-        resolve();
-      };
-      try { pttRecorder.stop(); } catch (_) { resolve(); }
-    });
-  }
-
-  function speakFree(text) {
-    return new Promise(function (resolve) {
-      try {
-        if (!window.speechSynthesis) { resolve(); return; }
-        window.speechSynthesis.cancel();
-        var u = new SpeechSynthesisUtterance(String(text).slice(0, 800));
-        u.rate = 1.05;
-        u.pitch = 0.95;
-        var voices = window.speechSynthesis.getVoices();
-        var en = voices.find(function (v) { return /en(-|_)?(GB|UK|US)/i.test(v.lang) && /male|daniel|google uk/i.test(v.name); })
-          || voices.find(function (v) { return /^en/i.test(v.lang); });
-        if (en) u.voice = en;
-        var pulse = setInterval(function () { emit('ttsLevel', 0.4 + Math.random() * 0.4); }, 80);
-        u.onend = function () { clearInterval(pulse); emit('ttsLevel', 0); resolve(); };
-        u.onerror = function () { clearInterval(pulse); resolve(); };
-        window.speechSynthesis.speak(u);
-      } catch (_) { resolve(); }
-    });
-  }
+  async function startPushToTalkRecording() {}
+  async function stopPushToTalkRecording() { startContinuousListening(); }
 
   async function speak(text) {
     text = String(text || '').trim();
     if (!text) return;
-    stopSpeaking();
-    var settled = false;
-    var fishDone = false;
-
-    var freeTimer = setTimeout(async function () {
-      if (settled || fishDone) return;
-      await speakFree(text);
-      settled = true;
-    }, 900);
+    isSpeaking = true;
+    stopSpeaking(true);
+    stopContinuousListening();
 
     try {
       var res = await window.jarvis.tts.synthesize(text);
-      fishDone = true;
-      clearTimeout(freeTimer);
-      if (settled) return;
       if (res && res.ok && res.audio) {
-        settled = true;
-        try { window.speechSynthesis.cancel(); } catch (_) {}
         var bin = atob(res.audio);
         var bytes = new Uint8Array(bin.length);
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -239,29 +175,33 @@ const JarvisVoice = (function () {
         await new Promise(function (resolve) {
           var pulse = setInterval(function () { emit('ttsLevel', 0.45 + Math.random() * 0.4); }, 80);
           speakingAudio.onended = function () {
-            clearInterval(pulse); URL.revokeObjectURL(url); speakingAudio = null; emit('ttsLevel', 0); resolve();
+            clearInterval(pulse);
+            URL.revokeObjectURL(url);
+            speakingAudio = null;
+            emit('ttsLevel', 0);
+            resolve();
           };
           speakingAudio.onerror = function () { clearInterval(pulse); resolve(); };
           speakingAudio.play().catch(function () { resolve(); });
         });
-        return;
+      } else {
+        emit('micError', { message: (res && res.error) || 'Fish Audio failed — set API key in Settings' });
       }
-    } catch (_) {
-      fishDone = true;
-      clearTimeout(freeTimer);
+    } catch (e) {
+      emit('micError', { message: 'Voice error — set Fish API key in Settings' });
     }
-    if (!settled) {
-      settled = true;
-      await speakFree(text);
-    }
+
+    isSpeaking = false;
+    continuousWanted = true;
+    setTimeout(function () { startContinuousListening(); }, 300);
   }
 
   function stopSpeaking() {
-    try { window.speechSynthesis.cancel(); } catch (_) {}
     if (speakingAudio) {
       try { speakingAudio.pause(); } catch (_) {}
       speakingAudio = null;
     }
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
     emit('ttsLevel', 0);
   }
 
