@@ -1,40 +1,46 @@
-# J.A.R.V.I.S. (aashish46ak-lab)
+# JARVIS — MARK 43 (Ashish)
 
-Your project — **this repo** is the home for your JARVIS.
+PC voice assistant based on **[Mark-LIII](https://github.com/FatihMakes/Mark-LIII)**.
 
-## Full features (Python)
+- Fast Gemini Live replies
+- Light echo guard (mic mute while speaking)
+- Optional cyan SVG J.A.R.V.I.S. HUD
+- MARK 43 branding
 
-Complete computer-control stack (wake word, browser, vision, plugins, phone dashboard, etc.) is the Mark-LIII engine, installed **into this repo** under `python/`.
-
-### Windows — do this
-
-1. Download **this** repo as ZIP:  
-   https://github.com/aashish46ak-lab/JARVIS/archive/refs/heads/main.zip  
-   Extract → open the folder.
-
-2. Double-click **`GET_FULL_PYTHON.bat`**  
-   It downloads all Python source into `python/` and creates `python\config\api_keys.json`.
-
-3. Edit **`python\config\api_keys.json`** — put your Gemini key:  
-   https://aistudio.google.com/apikey
-
-4. cmd:
+## Recommended: clean install from Mark-LIII
 
 ```bat
-cd path\to\JARVIS-main\python
-python setup.py
+cd %USERPROFILE%\Downloads
+git clone https://github.com/FatihMakes/Mark-LIII.git JARVIS-MARK43
+cd JARVIS-MARK43
+pip install -r requirements.txt
+```
+
+Put your **Gemini API key** in `config\api_keys.json`.
+
+```bat
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/aashish46ak-lab/JARVIS/main/python/RESTORE_FAST.py' -OutFile 'RESTORE_FAST.py'"
+python RESTORE_FAST.py
 python main.py
 ```
 
-5. Allow **microphone** when Windows asks.
-
-Engine credit: [FatihMakes/Mark-LIII](https://github.com/FatihMakes/Mark-LIII) (CC BY-NC 4.0). Prompt customized for MCU JARVIS ("sir").
-
-## Electron HUD (optional)
+## Optional cyan HUD
 
 ```bat
-npm install
-npm start
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/aashish46ak-lab/JARVIS/main/python/INSTALL_JARVIS_HUD.py' -OutFile 'INSTALL_JARVIS_HUD.py'"
+powershell -Command "New-Item -ItemType Directory -Force -Path hud_jarvis | Out-Null; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/aashish46ak-lab/JARVIS/main/python/hud_jarvis/index.html' -OutFile 'hud_jarvis\index.html'"
+pip install PyQt6-WebEngine
+python INSTALL_JARVIS_HUD.py
+python main.py
 ```
 
-Groq + Fish voice — lighter feature set than Python.
+## Tips
+
+- Headphones reduce echo
+- Run only one `python main.py`
+- Fish TTS is optional and slower — skip for instant voice
+
+## Credit
+
+Engine: [FatihMakes/Mark-LIII](https://github.com/FatihMakes/Mark-LIII)  
+HUD / MARK 43: Ashish
