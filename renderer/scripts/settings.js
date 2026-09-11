@@ -10,14 +10,16 @@ const JarvisSettings = (function () {
     try { enroll = await window.jarvis.enroll.status(); } catch (_) {}
     var body = document.getElementById('settings-body');
     body.innerHTML =
-      '<div class="s-section">AI ENGINE</div>' +
+      '<div class="s-section">AI ENGINE (brain — not voice)</div>' +
+      '<p class="s-hint">This is only for chat intelligence. JARVIS speaking voice is separate below.</p>' +
       '<label>Provider</label><select id="s-provider">' +
       '<option value="groq">Groq</option><option value="gemini">Gemini</option></select>' +
       '<label>Groq API Key</label><input id="s-groq" type="password" value="' + (config.groqApiKey || '') + '" />' +
       '<label>Groq Model</label><select id="s-model">' +
       '<option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>' +
       '<option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option></select>' +
-      '<div class="s-section">VOICE</div>' +
+      '<div class="s-section">J.A.R.V.I.S. VOICE (Fish Audio TTS)</div>' +
+      '<p class="s-hint">This is the real JARVIS speaking voice. Not Charon / Gemini. Save API key + Voice ID here.</p>' +
       '<label>Fish API Key</label><input id="s-fish" type="password" value="' + (config.fishApiKey || '') + '" />' +
       '<label>Fish Voice ID</label><input id="s-voiceid" type="text" value="' + (config.fishVoiceId || '14129c3e320149449d6bada6862f7338') + '" />' +
       '<label>Speed</label><input id="s-speed" type="range" min="0.7" max="1.3" step="0.05" value="' + (config.speakingSpeed || 1) + '" />' +
@@ -25,7 +27,7 @@ const JarvisSettings = (function () {
       '<label>Mode</label><select id="s-listen"><option value="continuous">Always listening</option><option value="push-to-talk">Push-to-talk</option></select>' +
       '<label>Wake word</label><select id="s-wake"><option value="false">No</option><option value="true">Yes</option></select>' +
       '<div class="s-section">IDENTITY</div>' +
-      '<p class="s-hint">Face: ' + (enroll.face ? 'saved' : 'not enrolled') + ' · Voice: ' + (enroll.voice ? 'saved' : 'not enrolled') + '</p>' +
+      '<p class="s-hint">Face: ' + (enroll.face ? 'saved' : 'not enrolled') + ' · Voice print: ' + (enroll.voice ? 'saved' : 'not enrolled') + '</p>' +
       '<button id="s-reenroll">Re-enroll face & voice</button>' +
       '<div class="s-section">DISPLAY</div>' +
       '<label>Animation</label><select id="s-anim"><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select>' +
@@ -33,7 +35,7 @@ const JarvisSettings = (function () {
       '<p class="s-hint" id="s-update-status">Checks GitHub for new builds. Never updates without your OK.</p>' +
       '<button id="s-check-update">Check for updates</button>' +
       '<button id="s-apply-update" style="display:none">Install update & restart</button>' +
-      '<button id="s-save" class="s-primary">Save</button><button id="s-test-ai">Test AI</button><button id="s-test-voice">Test voice</button>';
+      '<button id="s-save" class="s-primary">Save</button><button id="s-test-ai">Test AI</button><button id="s-test-voice">Test JARVIS voice</button>';
     document.getElementById('settings-drawer').classList.remove('hidden');
     document.getElementById('s-provider').value = config.aiProvider || 'groq';
     if (config.groqModel) document.getElementById('s-model').value = config.groqModel;
@@ -54,11 +56,11 @@ const JarvisSettings = (function () {
         animationIntensity: document.getElementById('s-anim').value,
         voiceEnabled: true, firstRunComplete: true,
       };
-      if (partial.groqApiKey && partial.groqApiKey.indexOf('••••') !== -1) delete partial.groqApiKey;
-      if (partial.fishApiKey && partial.fishApiKey.indexOf('••••') !== -1) delete partial.fishApiKey;
+      if (partial.groqApiKey && partial.groqApiKey.indexOf('\u2022\u2022\u2022\u2022') !== -1) delete partial.groqApiKey;
+      if (partial.fishApiKey && partial.fishApiKey.indexOf('\u2022\u2022\u2022\u2022') !== -1) delete partial.fishApiKey;
       var updated = await window.jarvis.config.update(partial);
       if (onUpdate) onUpdate(updated);
-      alert('Saved.');
+      alert('Saved. JARVIS voice (Fish) is separate from AI engine.');
     };
     document.getElementById('s-check-update').onclick = async function () {
       var st = document.getElementById('s-update-status');
@@ -94,7 +96,7 @@ const JarvisSettings = (function () {
     };
     document.getElementById('s-test-voice').onclick = async function () {
       var res = await window.jarvis.config.testVoice();
-      alert(res.ok ? 'Voice OK' : 'Failed: ' + res.error);
+      alert(res.ok ? 'JARVIS voice OK' : 'Failed: ' + res.error);
     };
     document.getElementById('s-reenroll').onclick = function () {
       document.getElementById('settings-drawer').classList.add('hidden');
@@ -130,8 +132,8 @@ const JarvisSettings = (function () {
       stopStream();
       if (step === 0) {
         steps.innerHTML = '<p class="setup-step-title">Step 1 · API Keys</p>' +
-          '<label>Groq API Key *</label><input id="su-groq" type="password" class="setup-input" placeholder="gsk_..." />' +
-          '<label>Fish Audio Key (optional)</label><input id="su-fish" type="password" class="setup-input" />';
+          '<label>Groq API Key * (AI brain)</label><input id="su-groq" type="password" class="setup-input" placeholder="gsk_..." />' +
+          '<label>Fish Audio Key (JARVIS speaking voice)</label><input id="su-fish" type="password" class="setup-input" />';
         finish.disabled = false; finish.textContent = 'Next: Camera';
       } else if (step === 1) {
         steps.innerHTML = '<p class="setup-step-title">Step 2 · Face</p>' +
@@ -162,7 +164,7 @@ const JarvisSettings = (function () {
           finish.disabled = false; finish.textContent = 'Skip face';
         }
       } else if (step === 2) {
-        steps.innerHTML = '<p class="setup-step-title">Step 3 · Voice</p>' +
+        steps.innerHTML = '<p class="setup-step-title">Step 3 · Voice print</p>' +
           '<p class="s-hint">Hold and say: “Jarvis, this is my voice.”</p>' +
           '<button type="button" id="su-rec" class="s-primary">Hold to record</button>' +
           '<p id="su-voice-status" class="s-hint">Not recorded yet</p>';
