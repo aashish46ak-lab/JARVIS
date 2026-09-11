@@ -3,21 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>J.A.R.V.I.S. v2</title>
+  <title>J.A.R.V.I.S.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
   <div id="setup-screen" class="screen hidden">
     <div class="setup-card">
       <h1>J.A.R.V.I.S.</h1>
-      <p class="tagline">SYSTEM INITIALIZATION · v2.0</p>
+      <p class="tagline">SYSTEM INITIALIZATION · v2.1</p>
       <div id="setup-steps"></div>
       <button id="setup-finish" class="primary" disabled>CONTINUE</button>
     </div>
   </div>
 
   <div id="hud-screen" class="screen hidden">
-    <div class="version-badge">JARVIS OS v2.0</div>
+    <div class="version-badge">v2.1.1</div>
     <div id="face-chip" class="face-chip hidden"><img id="face-chip-img" alt="enrolled" /></div>
     <header class="top-bar">
       <div class="left">
@@ -71,8 +73,7 @@
     <footer class="bottom-bar">
       <div id="conversation" class="conversation"></div>
       <div class="input-row">
-        <button id="btn-mic" class="mic-btn" title="Hold to talk">🎤</button>
-        <input id="text-input" type="text" placeholder="Speak or type a command…" autocomplete="off" />
+        <input id="text-input" type="text" placeholder="Always listening — speak or type…" autocomplete="off" />
         <button id="btn-send" class="send-btn">SEND</button>
       </div>
     </footer>
