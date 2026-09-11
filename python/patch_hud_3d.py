@@ -8,22 +8,25 @@ if "JARVIS core: dotted rings" in t:
     print("Already patched")
     raise SystemExit(0)
 
+# Find the no-face orb branch: from "else:" + orb_r through assistant_name drawText
 pat = re.compile(
-    r"        else:\n            (?:# ── 3D energy sphere.*?|orb_r = int\(fw \* 0\.27 \* self\._scale\).*?)"
-    r"p\.drawText\(QRectF\(cx - 8[09], cy [^"]+?self\._assistant_name\)",
+    r"        else:\n"
+    r"            orb_r = int\(fw \* 0\.\d+ \* self\._scale\).*?"
+    r"AlignCenter, self\._assistant_name\)",
     re.S,
 )
 m = pat.search(t)
 if not m:
-    # broader fallback: from else: orb through assistant_name draw near center
+    # already partially 3d-patched energy sphere style
     pat2 = re.compile(
-        r"        else:\n            orb_r = int\(fw \* 0\.\d+ \* self\._scale\).*?"
+        r"        else:\n"
+        r"            # ── 3D energy sphere.*?"
         r"AlignCenter, self\._assistant_name\)",
         re.S,
     )
     m = pat2.search(t)
 if not m:
-    raise SystemExit("orb block not found")
+    raise SystemExit("orb block not found — open ui.py and search for 'orb_r = int'")
 
 new_orb = r'''        else:
             # ── JARVIS core: dotted rings + red heart, pitch-reactive ────────
